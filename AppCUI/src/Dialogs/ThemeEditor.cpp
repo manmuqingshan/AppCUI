@@ -2128,7 +2128,10 @@ class ThemeEditorDialog : public Window
               FileDialog::ShowSaveFileWindow("", "Theme:theme", AppCUI::OS::GetCurrentApplicationPath().parent_path());
         if (res.has_value())
         {
-            if (Internal::Config::Save(this->cfg.GetConfig(), res.value()) == false)
+            auto file = res.value();
+            if (!file.has_extension())
+                file += ".theme";
+            if (Internal::Config::Save(this->cfg.GetConfig(), file) == false)
             {
                 MessageBox::ShowError("Save", "Fail to save theme file !");
             }
