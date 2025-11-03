@@ -263,7 +263,7 @@ void Application::UpdateAppCUISettings(Utils::IniObject& ini, bool clearExisting
     sect.UpdateValue("Size", "default", true);
     sect.UpdateValue("CharacterSize", "default", true);
     sect.UpdateValue("Fixed", "default", true);
-    sect.UpdateValue("Theme", "default", true);
+    sect.UpdateValue("Theme", "Default", true);
     sect.UpdateValue("CharacterSet", "auto", true);
 }
 bool Application::UpdateAppCUISettings(bool clearExistingSettings)
@@ -566,6 +566,28 @@ Controls::Control* GetFocusedControl(Controls::Control* ctrl)
     // altfel nici un copil nu e ok - cer eu
     return ctrl;
 }
+bool ThemesFolderToLocalPath(const String& folder, std::filesystem::path &outPath)
+{
+    if (!folder.Len())
+    {
+        LOG_WARNING("Invalid Themes Folder %s", folder.GetText());
+        return false;
+    }
+    auto appPath = OS::GetCurrentApplicationPath();
+    if (appPath.empty())
+    {
+        LOG_WARNING("OS::GetCurrentApplicationPath failed (without current application path, path to theme file can "
+                    "not be found");
+        return false;
+    }
+    appPath = appPath.remove_filename();
+
+    appPath /= (string_view) folder;
+    appPath += std::filesystem::path::preferred_separator;
+    outPath = std::move(appPath);
+    return true;
+}
+
 
 ApplicationImpl::ApplicationImpl()
 {
@@ -606,19 +628,12 @@ void ApplicationImpl::Destroy()
 }
 bool ApplicationImpl::LoadThemeFile(Application::InitializationData& initData)
 {
-    auto appPath = OS::GetCurrentApplicationPath();
-    if (appPath.empty())
+    auto appPath = config.ThemesFolder;
+    if (!std::filesystem::exists(appPath))
     {
-        LOG_WARNING("OS::GetCurrentApplicationPath failed (without current application path, path to theme file can "
-                    "not be found");
+        LOG_WARNING("Folder theme %s does not exist. It will be created.", appPath.string().c_str());
+        std::filesystem::create_directory(appPath);
         return false;
-    }
-    appPath = appPath.remove_filename();
-
-    if (initData.ThemeFolder.Len())
-    {
-        appPath /= (string_view) initData.ThemeFolder;
-        appPath += std::filesystem::path::preferred_separator;
     }
 
     appPath += (string_view) initData.ThemeName;
@@ -721,9 +736,9 @@ void ApplicationImpl::LoadSettingsFile(Application::InitializationData& initData
     if (themeName)
     {
         initData.ThemeName = themeName;
-        if (String::Equals(themeName, "dark", true))
+        if (String::Equals(themeName, "Dark", true))
             initData.Theme = Application::ThemeType::Dark;
-        else if (String::Equals(themeName, "light", true))
+        else if (String::Equals(themeName, "Light", true))
             initData.Theme = Application::ThemeType::Light;
         else
         {
@@ -769,7 +784,7 @@ bool ApplicationImpl::Init(Application::InitializationData& initData)
     CHECK((terminal = GetTerminal(initData)), false, "Fail to allocate a terminal object !");
     LOG_INFO("Terminal size: %d x %d", terminal->screenCanvas.GetWidth(), terminal->screenCanvas.GetHeight());
 
-    // configur other objects and settings
+    // configure other objects and settings
     if ((initData.Flags & Application::InitializationFlags::CommandBar) != Application::InitializationFlags::None)
     {
         cmdBar = std::make_unique<Internal::CommandBarController>(
@@ -784,8 +799,17 @@ bool ApplicationImpl::Init(Application::InitializationData& initData)
     }
 
     // configure theme
+    std::filesystem::path themesFolderFullPath;
+    if (ThemesFolderToLocalPath(initData.ThemeFolder, themesFolderFullPath))
+    {
+        config.ThemesFolder = themesFolderFullPath;
+    }
+
+    config.Theme = initData.Theme;
     if (!initData.ThemeName.Empty())
     {
+        // Force the default theme first because some themes might be incomplete
+        Internal::Config::SetTheme(config, initData.Theme);
         if (!LoadThemeFile(initData))
         {
             Internal::Config::SetTheme(config, initData.Theme);

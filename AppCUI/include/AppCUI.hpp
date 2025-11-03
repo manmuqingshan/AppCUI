@@ -5535,6 +5535,9 @@ namespace Application
                 Graphics::Color Normal, Inactive, Error, Warning, Info;
             } Background;
         } Window;
+
+        std::filesystem::path ThemesFolder;
+        ThemeType Theme;
     };
 
     EXPORT Config* GetAppConfig();

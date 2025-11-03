@@ -2109,6 +2109,21 @@ class ThemeEditorDialog : public Window
         themeMode->SetCurentItemIndex(0);
         themeMode->SetHotKey('T');
         cfg.SetPreviewWindowID(PreviewWindowID::Normal);
+
+        switch (cfg.GetConfig().Theme)
+        {
+        case Application::ThemeType::Default:
+            themeMode->SetCurentItemIndex(0);
+            break;
+        case Application::ThemeType::Dark:
+            themeMode->SetCurentItemIndex(1);
+            break;
+        case Application::ThemeType::Light:
+            themeMode->SetCurentItemIndex(2);
+            break;
+        default:
+            break;
+        }
     }
     void UpdateCategoryAndProperty()
     {
@@ -2122,10 +2137,11 @@ class ThemeEditorDialog : public Window
             cfg.SetCategoryAndProperty(prop->GetCurrentItemCategory(), PropID::None);
         }
     }
+
     void SaveTheme()
     {
-        auto res =
-              FileDialog::ShowSaveFileWindow("", "Theme:theme", AppCUI::OS::GetCurrentApplicationPath().parent_path());
+        auto [themeFolder, fileName] = GetThemesFolderAndCurrentFileName();
+        auto res = FileDialog::ShowSaveFileWindow(fileName, "Theme:theme", themeFolder);
         if (res.has_value())
         {
             auto file = res.value();
@@ -2143,8 +2159,8 @@ class ThemeEditorDialog : public Window
     }
     void LoadTheme()
     {
-        auto res =
-              FileDialog::ShowOpenFileWindow("", "Theme:theme", AppCUI::OS::GetCurrentApplicationPath().parent_path());
+        auto [themeFolder, fileName] = GetThemesFolderAndCurrentFileName();
+        auto res = FileDialog::ShowOpenFileWindow(fileName, "Theme:theme", themeFolder);
         if (res.has_value())
         {
             if (Internal::Config::Load(this->cfg.GetConfig(), res.value()) == false)
@@ -2212,6 +2228,20 @@ class ThemeEditorDialog : public Window
         }
 #endif
         return false;
+    }
+private:
+
+    std::tuple<std::filesystem::path, std::string> GetThemesFolderAndCurrentFileName()
+    {
+        auto themeFolder = cfg.GetConfig().ThemesFolder;
+        if (themeFolder.empty())
+            themeFolder = OS::GetCurrentApplicationPath().parent_path();
+        auto themeName = themeMode->GetCurrentItemText();
+        themeName.Add(".theme");
+        std::string fileName;
+        themeName.ToString(fileName);
+
+        return { themeFolder, fileName };
     }
 };
 
