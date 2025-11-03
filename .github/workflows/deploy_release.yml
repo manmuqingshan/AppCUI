@@ -10,315 +10,101 @@ on:
         type: boolean
 
 env:
-  # output directory for final release zips
-  CMAKE_OUT_DIRECTORY: "${{ github.workspace }}/binaries_out"
+  BUILD_TYPE: RelWithDebInfo
+  OUTPUT_DIR: ${{ github.workspace }}/binaries_out
 
 jobs:
-  build-win:
-    name: "Build Windows"
-    runs-on: windows-latest
-    env:
-      SDL2_URL: "https://www.libsdl.org/release/SDL2-devel-2.0.14-VC.zip"
-      SDL2_TTF_URL: "https://www.libsdl.org/projects/SDL_ttf/release/SDL2_ttf-devel-2.0.15-VC.zip"
-      SDL2_PATH: "C:\\SDL"
-      CMAKE_OUT_DIRECTORY: "${{ github.workspace }}\\binaries_out"
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-15-intel, windows-latest]
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Cache vcpkg
+        uses: actions/cache@v4
         with:
-          python-version: '3.x'
+          path: |
+            build/vcpkg_installed
+            build/vcpkg_downloads
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
 
-      - name: Ensure pip + requests
-        run: python -m pip install --upgrade pip requests
-
-      # Optional: use vcpkg to install deps instead of custom script
-      - name: Setup vcpkg (Windows)
-        uses: lukka/run-vcpkg@v11
-        with:
-          bootstrap: true
-
-      - name: Install SDL2 (legacy script)
-        run: python .github/workflows/win_sdl2.py
-        env:
-          SDL2_URL: ${{ env.SDL2_URL }}
-          SDL2_TTF_URL: ${{ env.SDL2_TTF_URL }}
-          SDL2_PATH: ${{ env.SDL2_PATH }}
-
-      - name: Configure (RelWithDebInfo) - shared
-        run: |
-          cmake -B "${{ github.workspace }}/build/dynamic_release" \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_PREFIX_PATH="C:\\SDL\\SDL2-2.0.14;C:\\SDL\\SDL2_ttf-2.0.15" \
-            -DAPPCUI_OUTPUT_LOCATION="${{ env.CMAKE_OUT_DIRECTORY }}/release/shared" \
-            -DAPPCUI_FORCE_DISABLE_TESTS=1 \
-            -DAPPCUI_FORCE_DISABLE_EXAMPLES=1 \
-            -DAPPCUI_LIBRARY_TYPE=SHARED
-
-      - name: Build (RelWithDebInfo) - shared
-        run: cmake --build "${{ github.workspace }}/build/dynamic_release" --config RelWithDebInfo -- /m
-
-      - name: Configure (RelWithDebInfo) - static
-        run: |
-          cmake -B "${{ github.workspace }}/build/static_release" \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_PREFIX_PATH="C:\\SDL\\SDL2-2.0.14;C:\\SDL\\SDL2_ttf-2.0.15" \
-            -DAPPCUI_OUTPUT_LOCATION="${{ env.CMAKE_OUT_DIRECTORY }}/release/static" \
-            -DAPPCUI_FORCE_DISABLE_TESTS=1 \
-            -DAPPCUI_FORCE_DISABLE_EXAMPLES=1 \
-            -DAPPCUI_LIBRARY_TYPE=STATIC
-
-      - name: Build (RelWithDebInfo) - static
-        run: cmake --build "${{ github.workspace }}/build/static_release" --config RelWithDebInfo -- /m
-
-      - name: Configure (Debug) - shared
-        run: |
-          cmake -B "${{ github.workspace }}/build/dynamic_debug" \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_PREFIX_PATH="C:\\SDL\\SDL2-2.0.14;C:\\SDL\\SDL2_ttf-2.0.15" \
-            -DAPPCUI_OUTPUT_LOCATION="${{ env.CMAKE_OUT_DIRECTORY }}/debug/shared" \
-            -DAPPCUI_FORCE_DISABLE_TESTS=1 \
-            -DAPPCUI_FORCE_DISABLE_EXAMPLES=1 \
-            -DAPPCUI_LIBRARY_TYPE=SHARED
-
-      - name: Build (Debug) - shared
-        run: cmake --build "${{ github.workspace }}/build/dynamic_debug" --config Debug -- /m
-
-      - name: Configure (Debug) - static
-        run: |
-          cmake -B "${{ github.workspace }}/build/static_debug" \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_PREFIX_PATH="C:\\SDL\\SDL2-2.0.14;C:\\SDL\\SDL2_ttf-2.0.15" \
-            -DAPPCUI_OUTPUT_LOCATION="${{ env.CMAKE_OUT_DIRECTORY }}/debug/static" \
-            -DAPPCUI_FORCE_DISABLE_TESTS=1 \
-            -DAPPCUI_FORCE_DISABLE_EXAMPLES=1 \
-            -DAPPCUI_LIBRARY_TYPE=STATIC
-
-      - name: Build (Debug) - static
-        run: cmake --build "${{ github.workspace }}/build/static_debug" --config Debug -- /m
-
-      - name: Package Windows artifacts
-        run: python .github/workflows/build_to_release_zip.py windows "${{ github.workspace }}" "${{ env.CMAKE_OUT_DIRECTORY }}"
-
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows_artifacts
-          path: ${{ env.CMAKE_OUT_DIRECTORY }}/*.zip
-          if-no-files-found: error
-          retention-days: 7
-
-  build-macos:
-    name: "Build macOS"
-    runs-on: macos-13
-    env:
-      CMAKE_OUT_DIRECTORY: "${{ github.workspace }}/binaries_out"
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Install Homebrew deps
-        run: |
-          brew update
-          brew install sdl2 sdl2_ttf ncurses cmake ninja
-
-      - name: Configure (RelWithDebInfo) - shared
-        run: |
-          cmake -B "${{ github.workspace }}/build/dynamic_release" \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_PREFIX_PATH=/usr/local/Cellar/ncurses/6.2 \
-            -DAPPCUI_OUTPUT_LOCATION="${{ env.CMAKE_OUT_DIRECTORY }}/release/shared" \
-            -DAPPCUI_FORCE_DISABLE_TESTS=1 \
-            -DAPPCUI_FORCE_DISABLE_EXAMPLES=1 \
-            -DAPPCUI_LIBRARY_TYPE=SHARED
-
-      - name: Build (RelWithDebInfo) - shared
-        run: cmake --build "${{ github.workspace }}/build/dynamic_release" --config RelWithDebInfo -- -j$(sysctl -n hw.ncpu)
-
-      - name: Configure (RelWithDebInfo) - static
-        run: |
-          cmake -B "${{ github.workspace }}/build/static_release" \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_PREFIX_PATH=/usr/local/Cellar/ncurses/6.2 \
-            -DAPPCUI_OUTPUT_LOCATION="${{ env.CMAKE_OUT_DIRECTORY }}/release/static" \
-            -DAPPCUI_FORCE_DISABLE_TESTS=1 \
-            -DAPPCUI_FORCE_DISABLE_EXAMPLES=1 \
-            -DAPPCUI_LIBRARY_TYPE=STATIC
-
-      - name: Build (RelWithDebInfo) - static
-        run: cmake --build "${{ github.workspace }}/build/static_release" --config RelWithDebInfo -- -j$(sysctl -n hw.ncpu)
-
-      - name: Configure (Debug) - shared
-        run: |
-          cmake -B "${{ github.workspace }}/build/dynamic_debug" \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_PREFIX_PATH=/usr/local/Cellar/ncurses/6.2 \
-            -DAPPCUI_OUTPUT_LOCATION="${{ env.CMAKE_OUT_DIRECTORY }}/debug/shared" \
-            -DAPPCUI_FORCE_DISABLE_TESTS=1 \
-            -DAPPCUI_FORCE_DISABLE_EXAMPLES=1 \
-            -DAPPCUI_LIBRARY_TYPE=SHARED
-
-      - name: Build (Debug) - shared
-        run: cmake --build "${{ github.workspace }}/build/dynamic_debug" --config Debug -- -j$(sysctl -n hw.ncpu)
-
-      - name: Configure (Debug) - static
-        run: |
-          cmake -B "${{ github.workspace }}/build/static_debug" \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_PREFIX_PATH=/usr/local/Cellar/ncurses/6.2 \
-            -DAPPCUI_OUTPUT_LOCATION="${{ env.CMAKE_OUT_DIRECTORY }}/debug/static" \
-            -DAPPCUI_FORCE_DISABLE_TESTS=1 \
-            -DAPPCUI_FORCE_DISABLE_EXAMPLES=1 \
-            -DAPPCUI_LIBRARY_TYPE=STATIC
-
-      - name: Build (Debug) - static
-        run: cmake --build "${{ github.workspace }}/build/static_debug" --config Debug -- -j$(sysctl -n hw.ncpu)
-
-      - name: Package macOS artifacts
-        run: python .github/workflows/build_to_release_zip.py apple "${{ github.workspace }}" "${{ env.CMAKE_OUT_DIRECTORY }}"
-
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: apple_artifacts
-          path: ${{ env.CMAKE_OUT_DIRECTORY }}/*.zip
-          if-no-files-found: error
-          retention-days: 7
-
-  build-ubuntu:
-    name: "Build Linux"
-    runs-on: ubuntu-22.04
-    env:
-      CC: gcc-10
-      CXX: g++-10
-      CMAKE_OUT_DIRECTORY: "${{ github.workspace }}/binaries_out"
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Install system deps
+      # OS-specific dependencies
+      - name: Install dependencies (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y build-essential cmake ninja-build gcc-10 g++-10 libsdl2-dev libsdl2-ttf-dev zip
+          sudo apt-get install -y build-essential cmake ninja-build libsdl2-dev libsdl2-ttf-dev zip
 
-      - name: Configure (RelWithDebInfo) - shared
+      - name: Install dependencies (macOS)
+        if: startsWith(matrix.os, 'macos')
         run: |
-          cmake -B "${{ github.workspace }}/build/dynamic_release" \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DAPPCUI_OUTPUT_LOCATION="${{ env.CMAKE_OUT_DIRECTORY }}/release/shared" \
-            -DAPPCUI_FORCE_DISABLE_TESTS=1 \
-            -DAPPCUI_FORCE_DISABLE_EXAMPLES=1 \
-            -DAPPCUI_LIBRARY_TYPE=SHARED
+          brew update
+          brew install cmake ninja sdl2 sdl2_ttf zip
+          echo "VCPKG_CMAKE_GENERATOR=Ninja" >> $GITHUB_ENV
 
-      - name: Build (RelWithDebInfo) - shared
-        run: cmake --build "${{ github.workspace }}/build/dynamic_release" --config RelWithDebInfo -- -j$(nproc)
-
-      - name: Configure (RelWithDebInfo) - static
+      - name: Install dependencies (Windows)
+        if: startsWith(matrix.os, 'windows')
+        shell: pwsh
         run: |
-          cmake -B "${{ github.workspace }}/build/static_release" \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DAPPCUI_OUTPUT_LOCATION="${{ env.CMAKE_OUT_DIRECTORY }}/release/static" \
-            -DAPPCUI_FORCE_DISABLE_TESTS=1 \
-            -DAPPCUI_FORCE_DISABLE_EXAMPLES=1 \
-            -DAPPCUI_LIBRARY_TYPE=STATIC
+          choco install cmake ninja zip -y --no-progress
+          Write-Host "Windows dependencies installed successfully."
 
-      - name: Build (RelWithDebInfo) - static
-        run: cmake --build "${{ github.workspace }}/build/static_release" --config RelWithDebInfo -- -j$(nproc)
+      # Configure and build
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
 
-      - name: Configure (Debug) - shared
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }}
+
+      # Package build
+      - name: Archive build artifacts
+        shell: bash
         run: |
-          cmake -B "${{ github.workspace }}/build/dynamic_debug" \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DAPPCUI_OUTPUT_LOCATION="${{ env.CMAKE_OUT_DIRECTORY }}/debug/shared" \
-            -DAPPCUI_FORCE_DISABLE_TESTS=1 \
-            -DAPPCUI_FORCE_DISABLE_EXAMPLES=1 \
-            -DAPPCUI_LIBRARY_TYPE=SHARED
-
-      - name: Build (Debug) - shared
-        run: cmake --build "${{ github.workspace }}/build/dynamic_debug" --config Debug -- -j$(nproc)
-
-      - name: Configure (Debug) - static
-        run: |
-          cmake -B "${{ github.workspace }}/build/static_debug" \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DAPPCUI_OUTPUT_LOCATION="${{ env.CMAKE_OUT_DIRECTORY }}/debug/static" \
-            -DAPPCUI_FORCE_DISABLE_TESTS=1 \
-            -DAPPCUI_FORCE_DISABLE_EXAMPLES=1 \
-            -DAPPCUI_LIBRARY_TYPE=STATIC
-
-      - name: Build (Debug) - static
-        run: cmake --build "${{ github.workspace }}/build/static_debug" --config Debug -- -j$(nproc)
-
-      - name: Package Linux artifacts
-        run: python .github/workflows/build_to_release_zip.py linux "${{ github.workspace }}" "${{ env.CMAKE_OUT_DIRECTORY }}"
-
-      - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v4
+          mkdir -p ${{ env.OUTPUT_DIR }}
+          cd build
+          zip -r "${{ env.OUTPUT_DIR }}/artifact_${{ matrix.os }}.zip" .
+      
+      - uses: actions/upload-artifact@v4
         with:
-          name: linux_artifacts
-          path: ${{ env.CMAKE_OUT_DIRECTORY }}/*.zip
+          name: ${{ matrix.os }}_artifacts
+          path: ${{ env.OUTPUT_DIR }}/*.zip
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
 
-  publish_job:
-    name: "Publish to release"
+  publish:
+    name: Publish GitHub Release
     runs-on: ubuntu-latest
-    needs: [build-win, build-macos, build-ubuntu]
+    needs: [build]
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
-      - name: Populate version env (helper)
-        run: python .github/workflows/get_version.py
-        # get_version.py should print or export APPCUI_VERSION to environment;
-        # For reliability, prefer printing to stdout and parsing into env in next step.
-
-      - name: Download Windows artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: windows_artifacts
-          path: artifacts/windows
+          path: artifacts
 
-      - name: Download Linux artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: linux_artifacts
-          path: artifacts/linux
-
-      - name: Download macOS artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: apple_artifacts
-          path: artifacts/apple
-
-      - name: Gather all artifacts
+      - name: Determine version tag
+        id: version
         run: |
-          mkdir -p artifacts/all
-          cp artifacts/windows/*.zip artifacts/all/ || true
-          cp artifacts/linux/*.zip artifacts/all/ || true
-          cp artifacts/apple/*.zip artifacts/all/ || true
-          ls -la artifacts/all
+          VERSION=$(python .github/workflows/get_version.py)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release & upload assets
-        uses: marvinpinto/action-automatic-releases@v1.2.1
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          automatic_release_tag: ${{ env.APPCUI_VERSION }}
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Build ${{ steps.version.outputs.version }}
+          draft: false
           prerelease: ${{ github.event.inputs.isPreRelease }}
-          title: Build ${{ env.APPCUI_VERSION }}
-          files: |
-            artifacts/all/*.zip
+          files: artifacts/**/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

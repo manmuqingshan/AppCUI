@@ -2,15 +2,9 @@ name: build
 
 on:
   push:
-    branches: [ main, release ]
+    branches: [ main ]
   pull_request:
   workflow_dispatch:
-
-env:
-  BUILD_TYPE: Release
-  CMAKE_CXX_STANDARD: "20"
-  # Prefer ninja for fast incremental builds; allow override per-run
-  CMAKE_GENERATOR: Ninja
 
 jobs:
   build:
@@ -19,135 +13,51 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-latest, macos-15-intel]
-        # You can add more triplets/compilers as needed later
+        os: [ubuntu-22.04, macos-15-intel, windows-latest]
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
 
-      # --- Python for helper scripts (Windows SDL step uses a python script) ---
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
-      # --- Caching: vcpkg artifacts and ccache ---
-      - name: Cache vcpkg (installed + downloads)
+      # Cache vcpkg dependencies (saves significant time)
+      - name: Cache vcpkg
         uses: actions/cache@v4
         with:
           path: |
-            vcpkg/installed
-            vcpkg/downloads
             build/vcpkg_installed
+            build/vcpkg_downloads
           key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
           restore-keys: |
             ${{ runner.os }}-vcpkg-
 
-      - name: Cache ccache (Linux/macOS)
-        if: runner.os != 'Windows'
-        uses: actions/cache@v4
-        with:
-          path: ~/.ccache
-          key: ${{ runner.os }}-ccache-${{ hashFiles('**/*.cpp','**/*.hpp','**/*.h','**/*.c','CMakeLists.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-
-
-      # --- Install platform deps ---
-      - name: Install OS dependencies (Ubuntu)
+      # OS-specific dependencies
+      - name: Install dependencies (Linux)
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y build-essential cmake ninja-build ccache gcc-10 g++-10 libsdl2-dev libsdl2-ttf-dev
+          sudo apt-get install -y build-essential cmake ninja-build libsdl2-dev libsdl2-ttf-dev
 
-      - name: Install OS dependencies (macOS)
+      - name: Install dependencies (macOS)
         if: startsWith(matrix.os, 'macos')
         run: |
           brew update
-          brew install cmake ninja ccache pkg-config
-          # SDL2 via homebrew if needed (uncomment if you prefer system SDL)
-          # brew install sdl2 sdl2_ttf
+          brew install cmake ninja sdl2 sdl2_ttf
+          echo "VCPKG_CMAKE_GENERATOR=Ninja" >> $GITHUB_ENV
 
-      - name: Install OS dependencies (Windows)
-        if: startsWith(matrix.os, 'Windows')
+      - name: Install dependencies (Windows)
+        if: startsWith(matrix.os, 'windows')
+        shell: pwsh
         run: |
-          choco install -y ninja cmake
+          choco install cmake ninja -y --no-progress
+          Write-Host "Windows dependencies installed successfully."
 
-      # --- Windows-only: SDL2 helper (keeps your existing python script) ---
-      - name: Install requests (for Windows SDL script)
-        if: startsWith(matrix.os, 'Windows')
-        run: pip install --upgrade pip requests
-
-      - name: Install SDL2 (Windows)
-        if: startsWith(matrix.os, 'Windows')
-        run: python .github/workflows/win_sdl2.py
-        env:
-          SDL2_URL: "https://www.libsdl.org/release/SDL2-devel-2.0.14-VC.zip"
-          SDL2_TTF_URL: "https://www.libsdl.org/projects/SDL_ttf/release/SDL2_ttf-devel-2.0.15-VC.zip"
-          SDL2_PATH: "C:\\SDL"
-
-      # --- vcpkg: setup and install manifest (if present) ---
-      - name: Setup vcpkg (run-vcpkg)
-        uses: lukka/run-vcpkg@v11
-        with:
-          bootstrap: true
-          # reads vcpkg.json manifest and installs listed packages automatically
-          # installed artifacts will be under vcpkg/installed/<triplet>
-          # see vcpkg docs for binary caching configuration if you'd like to push
-          # to GitHub Packages or Azure.
-          vcpkgArguments: |
-            --clean-packages
-            --use-head-version
-
-      # Export vcpkg env vars for CMake
-      - name: Export vcpkg environment
-        shell: bash
-        run: |
-          if [ -d "${{ github.workspace }}/vcpkg" ]; then
-            echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
-            echo "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
-            # When using vcpkg manifest mode, CMake will auto-consume vcpkg.json
-          fi
-        if: runner.os != 'Windows'
-
-      # On Windows set VCPKG_ROOT env var if vcpkg directory exists
-      - name: Export vcpkg environment (Windows)
-        if: startsWith(matrix.os, 'Windows') && env.VCPKG_ROOT == ''
-        run: |
-          if exist "%GITHUB_WORKSPACE%\vcpkg" (
-            echo "VCPKG_ROOT=%GITHUB_WORKSPACE%\vcpkg" >> %GITHUB_ENV
-            echo "CMAKE_TOOLCHAIN_FILE=%GITHUB_WORKSPACE%\vcpkg\scripts\buildsystems\vcpkg.cmake" >> %GITHUB_ENV
-          )
-        shell: cmd
-
-      # --- Configure CMake ---
+      # Configure and build with CMake
       - name: Configure CMake
-        env:
-          CC: ${{ matrix.os == 'ubuntu-22.04' && 'gcc-10' || '' }}
-          CXX: ${{ matrix.os == 'ubuntu-22.04' && 'g++-10' || '' }}
-        run: |
-          cmake -S . -B build \
-            -G "${{ env.CMAKE_GENERATOR }}" \
-            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-            -DCMAKE_CXX_STANDARD=${{ env.CMAKE_CXX_STANDARD }} \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            ${CMAKE_TOOLCHAIN_FILE:+-DCMAKE_TOOLCHAIN_FILE="$CMAKE_TOOLCHAIN_FILE"}
-      - name: Build
-        run: cmake --build build --config ${{ env.BUILD_TYPE }} -- -j$(nproc || echo 2)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
 
-      # Optional: upload artifacts for debugging on failure
-      - name: Upload build CMake files (for debug)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cmake-logs
-          path: |
-            build/
-            CMakeFiles/
-            CMakeCache.txt
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }}
   
   # Currently turned off because of the SDL implicit memory leaks
   # Maybe one day we can remove SDL leaks to get actually useful output out of it
