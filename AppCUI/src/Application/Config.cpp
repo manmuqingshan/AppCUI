@@ -607,7 +607,7 @@ bool WriteKeyToString(ColorPair col, std::string_view name, std::string_view fie
 bool WriteKeyToString(const ObjectColorState& col, std::string_view name, Utils::String& output)
 {
     CHECK(WriteKeyToString(col.Focused, name, "Focused", output), false, "");
-    CHECK(WriteKeyToString(col.Normal, name, "Regular", output), false, "");
+    CHECK(WriteKeyToString(col.Normal, name, "Normal", output), false, "");
     CHECK(WriteKeyToString(col.Inactive, name, "Inactive", output), false, "");
     CHECK(WriteKeyToString(col.Hovered, name, "Hovered", output), false, "");
     CHECK(WriteKeyToString(col.PressedOrSelected, name, "Pressed", output), false, "");
