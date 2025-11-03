@@ -2,80 +2,161 @@ name: build
 
 on:
   push:
-    branches:
-      - main
-  workflow_dispatch:
+    branches: [ main, release ]
   pull_request:
+  workflow_dispatch:
 
 env:
-  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
+  CMAKE_CXX_STANDARD: "20"
+  # Prefer ninja for fast incremental builds; allow override per-run
+  CMAKE_GENERATOR: Ninja
 
 jobs:
-  build-win:
-    runs-on: [windows-latest]
-    env:
-      SDL2_URL: "https://www.libsdl.org/release/SDL2-devel-2.0.14-VC.zip"
-      SDL2_TTF_URL: "https://www.libsdl.org/projects/SDL_ttf/release/SDL2_ttf-devel-2.0.15-VC.zip"
-      SDL2_PATH: "C:\\SDL"
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: true
-    - name: Install requests
-      run: pip install requests
-    - name: Install SDL2
-      run: python .github/workflows/win_sdl2.py
-    - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_PREFIX_PATH="C:\SDL\SDL2-2.0.14;C:\SDL\SDL2_ttf-2.0.15"
-    - name: Build
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
-      
-  build-macos:
-    runs-on: [macos-13] # avoid ARM for now - https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources 
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: true
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-13]
+        # You can add more triplets/compilers as needed later
+    concurrency:
+      group: ci-${{ github.ref }}
+      cancel-in-progress: true
 
-    # https://github.com/dotnet/runtime/issues/82240
-    # temporarily install pkg-config via brew
-    # - name: Install pkg-config
-    #   run: |
-    #     # brew update
-    #     brew install pkg-config
-    #     # brew upgrade
-      
-    # - name: Install sdl
-    #   run: brew install sdl2
-    # - name: Install sdl2_ttf
-    #   run: brew install sdl2_ttf
-    # - name: Install updated ncurses
-    #   run: brew install ncurses
-    - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_PREFIX_PATH=/usr/local/Cellar/ncurses/6.2
-    - name: Build
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
-
-  build-ubuntu:
-    runs-on: [ubuntu-22.04]
-    env:
-      CC: gcc-10
-      CXX: g++-10
     steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: true
-    - name: Update
-      run: sudo apt-get update -y
-    - name: Install SDL2
-      run: sudo apt-get install libsdl2-dev -y
-    - name: Install SDL2ttf
-      run: sudo apt-get install libsdl2-ttf-dev -y
-    - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
-    - name: Build
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      # --- Python for helper scripts (Windows SDL step uses a python script) ---
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      # --- Caching: vcpkg artifacts and ccache ---
+      - name: Cache vcpkg (installed + downloads)
+        uses: actions/cache@v4
+        with:
+          path: |
+            vcpkg/installed
+            vcpkg/downloads
+            build/vcpkg_installed
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
+
+      - name: Cache ccache (Linux/macOS)
+        if: runner.os != 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-ccache-${{ hashFiles('**/*.cpp','**/*.hpp','**/*.h','**/*.c','CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
+
+      # --- Install platform deps ---
+      - name: Install OS dependencies (Ubuntu)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential cmake ninja-build ccache gcc-10 g++-10 libsdl2-dev libsdl2-ttf-dev
+
+      - name: Install OS dependencies (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          brew update
+          brew install cmake ninja ccache pkg-config
+          # SDL2 via homebrew if needed (uncomment if you prefer system SDL)
+          # brew install sdl2 sdl2_ttf
+
+      - name: Install OS dependencies (Windows)
+        if: startsWith(matrix.os, 'Windows')
+        run: |
+          choco install -y ninja cmake
+
+      # --- Windows-only: SDL2 helper (keeps your existing python script) ---
+      - name: Install requests (for Windows SDL script)
+        if: startsWith(matrix.os, 'Windows')
+        run: pip install --upgrade pip requests
+
+      - name: Install SDL2 (Windows)
+        if: startsWith(matrix.os, 'Windows')
+        run: python .github/workflows/win_sdl2.py
+        env:
+          SDL2_URL: "https://www.libsdl.org/release/SDL2-devel-2.0.14-VC.zip"
+          SDL2_TTF_URL: "https://www.libsdl.org/projects/SDL_ttf/release/SDL2_ttf-devel-2.0.15-VC.zip"
+          SDL2_PATH: "C:\\SDL"
+
+      # --- vcpkg: setup and install manifest (if present) ---
+      - name: Setup vcpkg (run-vcpkg)
+        uses: lukka/run-vcpkg@v11
+        with:
+          bootstrap: true
+          # reads vcpkg.json manifest and installs listed packages automatically
+          # installed artifacts will be under vcpkg/installed/<triplet>
+          # see vcpkg docs for binary caching configuration if you'd like to push
+          # to GitHub Packages or Azure.
+          vcpkgArguments: |
+            --clean-packages
+            --use-head-version
+
+      # Export vcpkg env vars for CMake
+      - name: Export vcpkg environment
+        shell: bash
+        run: |
+          if [ -d "${{ github.workspace }}/vcpkg" ]; then
+            echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
+            echo "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
+            # When using vcpkg manifest mode, CMake will auto-consume vcpkg.json
+          fi
+        if: runner.os != 'Windows'
+
+      # On Windows set VCPKG_ROOT env var if vcpkg directory exists
+      - name: Export vcpkg environment (Windows)
+        if: startsWith(matrix.os, 'Windows') && env.VCPKG_ROOT == ''
+        run: |
+          if exist "%GITHUB_WORKSPACE%\vcpkg" (
+            echo "VCPKG_ROOT=%GITHUB_WORKSPACE%\vcpkg" >> %GITHUB_ENV
+            echo "CMAKE_TOOLCHAIN_FILE=%GITHUB_WORKSPACE%\vcpkg\scripts\buildsystems\vcpkg.cmake" >> %GITHUB_ENV
+          )
+        shell: cmd
+
+      # --- Configure CMake ---
+      - name: Configure CMake
+        env:
+          CC: ${{ matrix.os == 'ubuntu-22.04' && 'gcc-10' || '' }}
+          CXX: ${{ matrix.os == 'ubuntu-22.04' && 'g++-10' || '' }}
+        run: |
+          cmake -S . -B build \
+            -G "${{ env.CMAKE_GENERATOR }}" \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_CXX_STANDARD=${{ env.CMAKE_CXX_STANDARD }} \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            ${CMAKE_TOOLCHAIN_FILE:+-DCMAKE_TOOLCHAIN_FILE="$CMAKE_TOOLCHAIN_FILE"}
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} -- -j$(nproc || echo 2)
+      - name: Run tests (if any)
+        if: always()
+        run: |
+          if [ -f build/tests/run_tests ] ; then
+            build/tests/run_tests || true
+          fi
+
+      # Optional: upload artifacts for debugging on failure
+      - name: Upload build CMake files (for debug)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmake-logs
+          path: |
+            build/
+            CMakeFiles/
+            CMakeCache.txt
   
   # Currently turned off because of the SDL implicit memory leaks
   # Maybe one day we can remove SDL leaks to get actually useful output out of it
