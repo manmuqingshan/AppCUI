@@ -264,6 +264,7 @@ void Application::UpdateAppCUISettings(Utils::IniObject& ini, bool clearExisting
     sect.UpdateValue("CharacterSize", "default", true);
     sect.UpdateValue("Fixed", "default", true);
     sect.UpdateValue("Theme", "Default", true);
+    sect.UpdateValue("ThemeFolder", "Themes", true);
     sect.UpdateValue("CharacterSet", "auto", true);
 }
 bool Application::UpdateAppCUISettings(bool clearExistingSettings)
