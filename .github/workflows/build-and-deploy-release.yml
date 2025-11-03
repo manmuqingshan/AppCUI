@@ -63,13 +63,13 @@ jobs:
       - name: Build
         run: cmake --build build --config ${{ env.BUILD_TYPE }}
 
-      # Determine version
       - name: Extract version
         id: version
+        shell: pwsh
         run: |
-          output=$(python .github/workflows/get_version.py AppCUI/include/AppCUI.hpp)
-          echo "APPCUI_VERSION=$output" >> $GITHUB_ENV
-          echo "version=$output" >> $GITHUB_OUTPUT
+          $output = python .github/workflows/get_version.py AppCUI/include/AppCUI.hpp
+          echo "APPCUI_VERSION=$output" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "version=$output" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       # Copy static libs and terminfo if available
       - name: Copy libraries
