@@ -9,10 +9,6 @@ on:
         default: true
         type: boolean
 
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   # output directory for final release zips
   CMAKE_OUT_DIRECTORY: "${{ github.workspace }}/binaries_out"
