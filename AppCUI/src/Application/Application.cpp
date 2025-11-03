@@ -614,11 +614,18 @@ bool ApplicationImpl::LoadThemeFile(Application::InitializationData& initData)
         return false;
     }
     appPath = appPath.remove_filename();
+
+    if (initData.ThemeFolder.Len())
+    {
+        appPath /= (string_view) initData.ThemeFolder;
+        appPath += std::filesystem::path::preferred_separator;
+    }
+
     appPath += (string_view) initData.ThemeName;
     appPath.replace_extension(".theme");
     if (Internal::Config::Load(this->config, appPath) == false)
     {
-        LOG_WARNING("Fail to load theme file from: %s --> reverting to defaul theme", appPath.string().c_str());
+        LOG_WARNING("Fail to load theme file from: %s --> reverting to default theme", appPath.string().c_str());
         return false;
     }
     return true;
@@ -654,6 +661,7 @@ void ApplicationImpl::LoadSettingsFile(Application::InitializationData& initData
     auto charSize     = AppCUISection.GetValue("charactersize").ToString();
     bool fixedWindows = AppCUISection.GetValue("fixed").ToBool(false);
     auto themeName    = AppCUISection.GetValue("theme").ToString();
+    auto themeFolder    = AppCUISection.GetValue("themefolder").ToString();
     auto charSet      = AppCUISection.GetValue("characterSet").ToString();
 
     // frontend
@@ -712,17 +720,20 @@ void ApplicationImpl::LoadSettingsFile(Application::InitializationData& initData
     // themes
     if (themeName)
     {
-        if (String::Equals(themeName, "default", true))
-            initData.Theme = Application::ThemeType::Default;
-        else if (String::Equals(themeName, "dark", true))
+        initData.ThemeName = themeName;
+        if (String::Equals(themeName, "dark", true))
             initData.Theme = Application::ThemeType::Dark;
         else if (String::Equals(themeName, "light", true))
             initData.Theme = Application::ThemeType::Light;
         else
         {
             initData.Theme     = Application::ThemeType::Default;
-            initData.ThemeName = themeName;
         }
+    }
+
+    if (themeFolder)
+    {
+        initData.ThemeFolder = themeFolder;
     }
 
     // character set
@@ -812,7 +823,7 @@ bool ApplicationImpl::Init(Application::InitializationData& initData)
     InitFlags          = initData.Flags;
 
     Inited = true;
-    LOG_INFO("AppCUI initialized succesifully");
+    LOG_INFO("AppCUI initialized successfully");
     return true;
 }
 void ApplicationImpl::Paint()

@@ -5445,13 +5445,14 @@ namespace Application
         InitializationFlags Flags;
         string_view FontName;
         Utils::FixSizeString<32> ThemeName;
+        Utils::String ThemeFolder;
         ThemeType Theme;
         SpecialCharacterSetType SpecialCharacterSet;
         Controls::Desktop* (*CustomDesktopConstructor)();
 
         InitializationData()
             : Width(0), Height(0), Frontend(FrontendType::Default), CharSize(CharacterSize::Default),
-              Flags(InitializationFlags::None), FontName(""), Theme(ThemeType::Default),
+              Flags(InitializationFlags::None), FontName(""), ThemeFolder("Themes"), Theme(ThemeType::Default),
               SpecialCharacterSet(SpecialCharacterSetType::Auto), CustomDesktopConstructor(nullptr)
         {
         }
