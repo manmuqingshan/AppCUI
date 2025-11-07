@@ -464,6 +464,55 @@ namespace Graphics
         }
     };
 
+    class CustomColor
+    {
+      public:
+        using VariantT = std::variant<ColorPair, ObjectColorState>;
+
+        CustomColor() = default;
+        CustomColor(ObjectColorState s) noexcept(std::is_nothrow_move_constructible_v<VariantT>)
+            : variant_(std::move(s)) {}
+        CustomColor(ColorPair c) noexcept(std::is_nothrow_move_constructible_v<VariantT>) : variant_(std::move(c)) {}
+
+        CustomColor(const CustomColor&)                = default;
+        CustomColor(CustomColor&&) noexcept            = default;
+        CustomColor& operator=(const CustomColor&)     = default;
+        CustomColor& operator=(CustomColor&&) noexcept = default;
+
+        template <typename Visitor>
+        decltype(auto) Visit(Visitor&& vis)
+        {
+            return std::visit(std::forward<Visitor>(vis), variant_);
+        }
+
+        template <typename Visitor>
+        decltype(auto) Visit(Visitor&& vis) const
+        {
+            return std::visit(std::forward<Visitor>(vis), variant_);
+        }
+
+        bool IsColorState() const noexcept
+        {
+            return std::holds_alternative<ObjectColorState>(variant_);
+        }
+        bool IsColorPair() const noexcept
+        {
+            return std::holds_alternative<ColorPair>(variant_);
+        }
+
+        const ObjectColorState* TryGetColorState() const noexcept
+        {
+            return std::get_if<ObjectColorState>(&variant_);
+        }
+        const ColorPair* TryGetColorPair() const noexcept
+        {
+            return std::get_if<ColorPair>(&variant_);
+        }
+
+      private:
+        VariantT variant_;
+    };
+
     struct Character
     {
         union
@@ -5479,6 +5528,9 @@ namespace Application
 
     struct Config
     {
+        using CategoryColorsStorage = std::map<std::string, Graphics::CustomColor>;
+        using CustomColorStorage = std::map<std::string, CategoryColorsStorage>;
+
         Graphics::ObjectColorState SearchBar, Border, Lines, Editor, LineMarker;
 
         struct
@@ -5538,6 +5590,7 @@ namespace Application
 
         std::filesystem::path ThemesFolder;
         ThemeType Theme;
+        CustomColorStorage CustomColors;
     };
 
     EXPORT Config* GetAppConfig();
