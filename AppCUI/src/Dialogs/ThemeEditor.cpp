@@ -2169,6 +2169,13 @@ class ThemeEditorDialog : public Window
             }
         }
     }
+
+    void OnApplyTheme()
+    {
+        (*Application::GetAppConfig()) = cfg.GetConfig();
+        Application::GetApplication()->TriggerThemeChange();
+    }
+
     bool OnEvent(Reference<Control> control, Event eventType, int ID) override
     {
         if (Window::OnEvent(control, eventType, ID))
@@ -2181,7 +2188,7 @@ class ThemeEditorDialog : public Window
                 this->Exit(Dialogs::Result::Cancel);
                 return true;
             case BUTTON_CMD_APPLY:
-                (*Application::GetAppConfig()) = cfg.GetConfig();
+                OnApplyTheme();
                 this->Exit(Dialogs::Result::Ok);
                 return true;
             case BUTTON_CMD_SAVE:
@@ -2254,4 +2261,21 @@ void ThemeEditor::Show()
         dlg.Show();
     }
 }
+
+bool ThemeEditor::RegisterListener(OnThemeChangedInterface* listener)
+{
+    auto app = Application::GetApplication();
+    if (!app)
+        return false;
+    return app->RegisterListener(listener);
+}
+
+void ThemeEditor::RemoveListener(OnThemeChangedInterface* listener)
+{
+    auto app = Application::GetApplication();
+    if (!app)
+        return;
+    app->RemoveListener(listener);
+}
+
 } // namespace AppCUI::Dialogs

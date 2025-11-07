@@ -17,6 +17,7 @@
 
 #include <stdio.h>
 #include <iostream>
+#include <set>
 
 namespace AppCUI
 {
@@ -248,6 +249,7 @@ namespace Internal
         unique_ptr<CommandBarController> cmdBar;
         unique_ptr<MenuBar> menu;
         vector<Controls::Control*> toDelete;
+        std::set<Dialogs::OnThemeChangedInterface*> themeChangedListeners;
 
         Controls::Desktop* AppDesktop;
         ToolTipController ToolTip;
@@ -314,6 +316,11 @@ namespace Internal
         bool SetToolTip(Utils::Reference<Controls::Control> control, const ConstString& text, int x, int y);
 
         void ArrangeWindows(Application::ArrangeWindowsMethod method);
+
+        // Theme changed
+        bool RegisterListener(Dialogs::OnThemeChangedInterface* listener);
+        void RemoveListener(Dialogs::OnThemeChangedInterface* listener);
+        void TriggerThemeChange() const;
     };
 } // namespace Internal
 namespace Application

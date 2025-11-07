@@ -5395,12 +5395,19 @@ namespace Dialogs
         static void Show();
     };
 
+    struct OnThemeChangedInterface
+    {
+        virtual void OnThemeChanged(const Application::Config& config) = 0;
+    };
+
     class EXPORT ThemeEditor
     {
         ThemeEditor() = delete;
 
       public:
         static void Show();
+        static bool RegisterListener(OnThemeChangedInterface* listener);
+        static void RemoveListener(OnThemeChangedInterface* listener);
     };
 } // namespace Dialogs
 
@@ -5593,6 +5600,7 @@ namespace Application
         CustomColorStorage CustomColors;
     };
 
+    EXPORT bool RegisterCustomConfigColor(std::string category, Config::CategoryColorsStorage colors);
     EXPORT Config* GetAppConfig();
     EXPORT Utils::IniObject* GetAppSettings();
     EXPORT bool SaveAppSettings();

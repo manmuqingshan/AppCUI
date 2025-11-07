@@ -214,12 +214,26 @@ ItemHandle Application::AddWindow(unique_ptr<Window> wnd, Window* referalWindow,
 Controls::Menu* Application::AddMenu(const ConstString& name)
 {
     CHECK(app, nullptr, "Application has not been initialized !");
-    CHECK(app->Inited, nullptr, "Application has not been corectly initialized !");
+    CHECK(app->Inited, nullptr, "Application has not been correctly initialized !");
     CHECK(app->menu, nullptr, "Application was not initialized with HAS_MENU option set up !");
     ItemHandle itm         = app->menu->AddMenu(name);
     Controls::Menu* result = app->menu->GetMenu(itm);
     CHECK(result, nullptr, "Fail to create menu !");
     return result;
+}
+
+bool Application::RegisterCustomConfigColor(std::string category, Config::CategoryColorsStorage colors)
+{
+    CHECK(app, false, "Application has not been initialized !");
+    CHECK(app->Inited, false, "Application has not been correctly initialized !");
+
+    auto& config = app->config;
+    if (config.CustomColors.contains(category))
+    {
+        RETURNERROR(false, "Category '%s' is already registered in custom config colors !", category.c_str());
+    }
+    config.CustomColors[std::move(category)] = std::move(colors);
+    return false;
 }
 
 Application::Config* Application::GetAppConfig()
@@ -1657,4 +1671,27 @@ void ApplicationImpl::ArrangeWindows(Application::ArrangeWindowsMethod method)
 
     this->RepaintStatus = REPAINT_STATUS_ALL;
 }
+
+bool ApplicationImpl::RegisterListener(Dialogs::OnThemeChangedInterface* listener)
+{
+    if (themeChangedListeners.contains(listener))
+        return false;
+    themeChangedListeners.emplace(listener);
+    return true;
+}
+void ApplicationImpl::RemoveListener(Dialogs::OnThemeChangedInterface* listener)
+{
+    auto it = themeChangedListeners.find(listener);
+    if (it != themeChangedListeners.end())
+        themeChangedListeners.erase(it);
+}
+
+void ApplicationImpl::TriggerThemeChange() const
+{
+    for (const auto& listener: themeChangedListeners)
+    {
+        listener->OnThemeChanged(config);
+    }
+}
+
 } // namespace AppCUI
