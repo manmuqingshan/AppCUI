@@ -397,11 +397,15 @@ namespace Graphics
     constexpr ColorPair NoColorPair      = ColorPair{ Color::Transparent, Color::Transparent };
     constexpr ColorPair DefaultColorPair = ColorPair{ Color::White, Color::Black };
 
+    constexpr uint32 OBJECT_COLOR_STATE_COUNT = 5;
+    constexpr std::string_view OBJECT_COLOR_STATE_NAMES[OBJECT_COLOR_STATE_COUNT] = {
+        "Focused", "Normal", "Hovered", "Inactive", "PressedOrSelected"
+    };
     struct ObjectColorState
     {
         union
         {
-            ColorPair StatesList[5];
+            ColorPair StatesList[OBJECT_COLOR_STATE_COUNT];
             struct
             {
                 ColorPair Focused, Normal, Hovered, Inactive, PressedOrSelected;
@@ -5634,6 +5638,7 @@ namespace Dialogs
 
     struct OnThemeChangedInterface
     {
+        virtual ~OnThemeChangedInterface() = default;
         virtual void OnThemeChanged(const Application::Config& config) = 0;
     };
 
