@@ -2262,12 +2262,26 @@ void ThemeEditor::Show()
     }
 }
 
-bool ThemeEditor::RegisterListener(OnThemeChangedInterface* listener)
+bool ThemeEditor::RegisterCustomColors(Application::Config::CustomColorStorage colors, OnThemeChangedInterface* listener)
 {
     auto app = Application::GetApplication();
-    if (!app)
+    CHECK(app, false, "Application has not been initialized !");
+    CHECK(app->Inited, false, "Application has not been correctly initialized !");
+
+    auto& config = app->config;
+    for (auto& [category_name, custom_colors] : colors)
+    {
+        if (config.CustomColors.contains(category_name))
+        {
+            RETURNERROR(false, "Category '%s' is already registered in custom config colors !", category_name.c_str());
+        }
+
+        config.CustomColors[category_name] = std::move(custom_colors);
+    }
+
+    if (listener && !app->RegisterListener(listener))
         return false;
-    return app->RegisterListener(listener);
+    return true;
 }
 
 void ThemeEditor::RemoveListener(OnThemeChangedInterface* listener)

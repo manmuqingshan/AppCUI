@@ -222,20 +222,6 @@ Controls::Menu* Application::AddMenu(const ConstString& name)
     return result;
 }
 
-bool Application::RegisterCustomConfigColor(std::string category, Config::CategoryColorsStorage colors)
-{
-    CHECK(app, false, "Application has not been initialized !");
-    CHECK(app->Inited, false, "Application has not been correctly initialized !");
-
-    auto& config = app->config;
-    if (config.CustomColors.contains(category))
-    {
-        RETURNERROR(false, "Category '%s' is already registered in custom config colors !", category.c_str());
-    }
-    config.CustomColors[std::move(category)] = std::move(colors);
-    return false;
-}
-
 Application::Config* Application::GetAppConfig()
 {
     CHECK(app, nullptr, "Application has not been initialized !");
@@ -1674,6 +1660,8 @@ void ApplicationImpl::ArrangeWindows(Application::ArrangeWindowsMethod method)
 
 bool ApplicationImpl::RegisterListener(Dialogs::OnThemeChangedInterface* listener)
 {
+    if (!listener)
+        return true;
     if (themeChangedListeners.contains(listener))
         return false;
     themeChangedListeners.emplace(listener);

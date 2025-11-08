@@ -5350,67 +5350,6 @@ namespace Controls
 
 }; // namespace Controls
 
-namespace Dialogs
-{
-    class EXPORT MessageBox
-    {
-        MessageBox() = delete;
-
-      public:
-        static void ShowError(const ConstString& title, const ConstString& message);
-        static void ShowNotification(const ConstString& title, const ConstString& message);
-        static void ShowWarning(const ConstString& title, const ConstString& message);
-        static Result ShowOkCancel(const ConstString& title, const ConstString& message);
-        static Result ShowYesNoCancel(const ConstString& title, const ConstString& message);
-    };
-
-    class EXPORT FileDialog
-    {
-        FileDialog() = delete;
-
-        // Add additional extension filters so that FileDialog will show only the specified extensions,
-        // other extensions will be filtered. If no filter is passed (empty string) - "All files" is chosen
-        //
-        // Filter format is: <Name>:ext|<Name>:ext| ...
-        //               or: <Name>:ext1,ext2,ext3|<Name>:ext|....
-        //
-        // For example:
-        //       "Text Files:txt|Images:jpg,jpeg,png|Documents:pdf,doc,docx,xlsx,xls,ppt,pptx"
-        //
-        // Will show "Text Files" and, if selected, only .txt files will be shown
-        // If the user selects "Images" - .jpg, .jpeg and .png files will be shown
-
-      public:
-        static optional<std::filesystem::path> ShowSaveFileWindow(
-              const ConstString& fileName, const ConstString& extensionsFilter, const std::filesystem::path& path);
-        static optional<std::filesystem::path> ShowOpenFileWindow(
-              const ConstString& fileName, const ConstString& extensionsFilter, const std::filesystem::path& path);
-    };
-
-    class EXPORT WindowManager
-    {
-        WindowManager() = delete;
-
-      public:
-        static void Show();
-    };
-
-    struct OnThemeChangedInterface
-    {
-        virtual void OnThemeChanged(const Application::Config& config) = 0;
-    };
-
-    class EXPORT ThemeEditor
-    {
-        ThemeEditor() = delete;
-
-      public:
-        static void Show();
-        static bool RegisterListener(OnThemeChangedInterface* listener);
-        static void RemoveListener(OnThemeChangedInterface* listener);
-    };
-} // namespace Dialogs
-
 namespace Log
 {
     enum class Severity : uint32
@@ -5600,7 +5539,6 @@ namespace Application
         CustomColorStorage CustomColors;
     };
 
-    EXPORT bool RegisterCustomConfigColor(std::string category, Config::CategoryColorsStorage colors);
     EXPORT Config* GetAppConfig();
     EXPORT Utils::IniObject* GetAppSettings();
     EXPORT bool SaveAppSettings();
@@ -5648,6 +5586,68 @@ namespace Application
     EXPORT void SetTheme(ThemeType themeType);
     EXPORT bool SetSpecialCharacterSet(SpecialCharacterSetType characterSetType);
 }; // namespace Application
+
+namespace Dialogs
+{
+    class EXPORT MessageBox
+    {
+        MessageBox() = delete;
+
+      public:
+        static void ShowError(const ConstString& title, const ConstString& message);
+        static void ShowNotification(const ConstString& title, const ConstString& message);
+        static void ShowWarning(const ConstString& title, const ConstString& message);
+        static Result ShowOkCancel(const ConstString& title, const ConstString& message);
+        static Result ShowYesNoCancel(const ConstString& title, const ConstString& message);
+    };
+
+    class EXPORT FileDialog
+    {
+        FileDialog() = delete;
+
+        // Add additional extension filters so that FileDialog will show only the specified extensions,
+        // other extensions will be filtered. If no filter is passed (empty string) - "All files" is chosen
+        //
+        // Filter format is: <Name>:ext|<Name>:ext| ...
+        //               or: <Name>:ext1,ext2,ext3|<Name>:ext|....
+        //
+        // For example:
+        //       "Text Files:txt|Images:jpg,jpeg,png|Documents:pdf,doc,docx,xlsx,xls,ppt,pptx"
+        //
+        // Will show "Text Files" and, if selected, only .txt files will be shown
+        // If the user selects "Images" - .jpg, .jpeg and .png files will be shown
+
+      public:
+        static optional<std::filesystem::path> ShowSaveFileWindow(
+              const ConstString& fileName, const ConstString& extensionsFilter, const std::filesystem::path& path);
+        static optional<std::filesystem::path> ShowOpenFileWindow(
+              const ConstString& fileName, const ConstString& extensionsFilter, const std::filesystem::path& path);
+    };
+
+    class EXPORT WindowManager
+    {
+        WindowManager() = delete;
+
+      public:
+        static void Show();
+    };
+
+    struct OnThemeChangedInterface
+    {
+        virtual void OnThemeChanged(const Application::Config& config) = 0;
+    };
+
+    class EXPORT ThemeEditor
+    {
+        ThemeEditor() = delete;
+
+      public:
+        static void Show();
+        static bool RegisterCustomColors(Application::Config::CustomColorStorage colors, OnThemeChangedInterface* listener);
+        static void RemoveListener(OnThemeChangedInterface* listener);
+    };
+} // namespace Dialogs
+
 namespace Endian
 {
 
