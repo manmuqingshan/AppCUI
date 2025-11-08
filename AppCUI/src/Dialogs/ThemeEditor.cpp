@@ -371,20 +371,70 @@ enum class PropType : uint32
 
     Count
 };
+
+struct ConfigCustomEntry
+{
+    std::string_view category;
+    std::string colorName;
+    PropertyType propertyType;
+    CustomColor *color;
+    std::optional<uint8> stateIndex;
+};
+
 class ConfigProperty : public PropertiesInterface
 {
+    // <propID, <category, color_name, value>>
+
     AppCUI::Application::Config obj;
     CatID catID;
     PropID propID;
     PreviewWindowID windowID;
     CatID catIDCount;
-    std::vector<std::string> propertyNames;
+    std::map<PropID, ConfigCustomEntry> customProperties;
 
   public:
     ConfigProperty(const AppCUI::Application::Config& config)
-        : obj(config), catID(static_cast<CatID>(CatType::None)), propID(static_cast<PropID>(PropType::None))
+        : obj(config), catID(static_cast<CatID>(CatType::None)), propID(static_cast<PropID>(PropType::None)),
+          windowID(PreviewWindowID::Normal)
     {
         catIDCount = static_cast<CatID>(CatType::Count) + static_cast<uint32>(obj.CustomColors.size());
+
+        PropID currentPropId = static_cast<PropID>(PropType::Count);
+        for (auto& [categoryName, categoryColors] : obj.CustomColors)
+        {
+            for (auto& [colorName, color] : categoryColors)
+            {
+                if (color.IsColorState())
+                {
+                    static_assert(
+                          OBJECT_COLOR_STATE_COUNT == 5, "If OBJECT_COLOR_STATE_COUNT changes, update the code below!");
+                    LocalString<128> buffer;
+                    for (uint32 state = 0; state < OBJECT_COLOR_STATE_COUNT; ++state)
+                    {
+                        buffer.SetFormat("%s (%s)", colorName.c_str(), OBJECT_COLOR_STATE_NAMES[state].data());
+                        ConfigCustomEntry entry           = { .category     = categoryName,
+                                                              .colorName    = buffer.GetText(),
+                                                              .propertyType = PropertyType::ColorPair,
+                                                              .color        = &color,
+                                                              .stateIndex   = state };
+                        customProperties[currentPropId++] = std::move(entry);
+                    }
+                    continue;
+                }
+
+                if (color.IsColorPair())
+                {
+                    ConfigCustomEntry entry           = { .category     = categoryName,
+                                                          .colorName    = colorName,
+                                                          .propertyType = PropertyType::ColorPair,
+                                                          .color        = &color,
+                                                          .stateIndex   = std::nullopt };
+                    customProperties[currentPropId++] = std::move(entry);
+                    continue;
+                }
+                assert(false && "Only ColorPair and ColorState are supported for custom colors!");
+            }
+        }
     }
     inline AppCUI::Application::Config& GetConfig()
     {
@@ -1423,55 +1473,11 @@ class ConfigProperty : public PropertiesInterface
 
             return false; // Unhandled property
         }
-        auto color = GetCustomColorByPropertyId(static_cast<PropID>(propertyID), &value);
-        if (color.IsValid())
+        if (GetCustomColorByPropertyId(propertyID, &value))
             return true;
         return false;
     }
-    Reference<CustomColor> GetCustomColorByPropertyId(PropID propertyID, PropertyValue* value)
-    {
-        if (propertyID < static_cast<PropID>(PropType::Count))
-            return nullptr;
 
-        PropID currentPropId = static_cast<PropID>(PropType::Count);
-        for (auto& [categoryName, categoryColors] : obj.CustomColors)
-        {
-            for (auto& [colorName, color] : categoryColors)
-            {
-                if (color.IsColorState())
-                {
-                    if (currentPropId <= propertyID && propertyID < currentPropId + OBJECT_COLOR_STATE_COUNT)
-                    {
-                        auto colorState = color.TryGetColorState();
-                        assert(colorState != nullptr);
-                        PropID actualId = propertyID - currentPropId;
-                        assert(actualId < OBJECT_COLOR_STATE_COUNT);
-                        if (value)
-                            *value = colorState->StatesList[actualId];
-                        return &color;
-                    }
-                    currentPropId += OBJECT_COLOR_STATE_COUNT;
-                    continue;
-                }
-
-                if (color.IsColorPair())
-                {
-                    if (currentPropId == propertyID)
-                    {
-                        auto colorPair = color.TryGetColorPair();
-                        assert(colorPair != nullptr);
-                        if (value)
-                            *value = *colorPair; 
-                        return &color;
-                    }
-                    ++currentPropId;
-                    continue;
-                }
-                assert(false && "Only ColorPair and ColorState are supported for custom colors!");
-            }
-        }
-        return nullptr;
-    }
     bool SetPropertyValue(uint32 propertyID, const PropertyValue& value, String& error) override
     {
         if (propertyID < static_cast<PropID>(PropType::Count))
@@ -1936,10 +1942,56 @@ class ConfigProperty : public PropertiesInterface
             return false;
         }
 
-        // TODO: Custom properties should be handled here
+        if (GetCustomColorByPropertyId(propertyID, nullptr, &value))
+            return true;
 
         return false;
     }
+
+    bool GetCustomColorByPropertyId(
+          PropID propertyID, PropertyValue* valueToObtain = nullptr, const PropertyValue* valueToSet = nullptr)
+    {
+        if (propertyID < static_cast<PropID>(PropType::Count))
+            return false;
+        auto it = customProperties.find(propertyID);
+        if (it == customProperties.end())
+            return false;
+
+        auto& propData = it->second;
+        if (propData.color->IsColorState())
+        {
+            auto colorState = propData.color->TryGetColorState();
+            assert(colorState != nullptr);
+            assert(propData.stateIndex.has_value() && propData.stateIndex.value() < OBJECT_COLOR_STATE_COUNT);
+            if (!propData.stateIndex.has_value()) // should not happen but return on release and abort on debug
+                return false;
+            auto& specifiedColor = colorState->StatesList[propData.stateIndex.value()];
+            if (valueToObtain)
+            {
+                *valueToObtain = specifiedColor;
+            }
+            if (valueToSet)
+            {
+                auto newColorState                                    = *colorState;
+                newColorState.StatesList[propData.stateIndex.value()] = std::get<ColorPair>(*valueToSet);
+                *it->second.color                                     = CustomColor(newColorState);
+            }
+            return true;
+        }
+        if (propData.color->IsColorPair())
+        {
+            auto colorPair = propData.color->TryGetColorPair();
+            assert(colorPair != nullptr);
+            if (valueToObtain)
+                *valueToObtain = *colorPair;
+            if (valueToSet)
+                *it->second.color = CustomColor(std::get<ColorPair>(*valueToSet));
+            return true;
+        }
+        assert(false && "Only ColorPair and ColorState are supported for custom colors!");
+        return false;
+    }
+
     void SetCustomPropertyValue(uint32 /*propertyID*/) override
     {
     }
@@ -2143,58 +2195,12 @@ class ConfigProperty : public PropertiesInterface
         };
 #undef PT
 #undef CAT
-        uint32 computedCapacity = static_cast<uint32>(properties.size());
-        uint32 propertyCount    = 0;
-        for (const auto& [category_name, category_colors]: obj.CustomColors)
+        properties.reserve(properties.size() + customProperties.size());
+
+        for (const auto& [propId, propData] : customProperties)
         {
-            for (const auto& color : category_colors)
-            {
-                if (color.second.IsColorState())
-                {
-                    propertyCount += OBJECT_COLOR_STATE_COUNT;
-                    computedCapacity += OBJECT_COLOR_STATE_COUNT;
-                    continue;
-                }
-                propertyCount += 1;
-                computedCapacity += 1;
-            }
+            properties.emplace_back(propId, propData.category, propData.colorName, PropertyType::ColorPair);
         }
-        properties.reserve(computedCapacity);
-        propertyNames.reserve(propertyCount);
-
-        PropID currentPropId    = static_cast<PropID>(PropType::Count);
-        for (const auto& [categoryName, categoryColors] : obj.CustomColors)
-        {
-            for (const auto& [colorName, color] : categoryColors)
-            {
-                if (color.IsColorState())
-                {
-                    static_assert(
-                          OBJECT_COLOR_STATE_COUNT == 5, "If OBJECT_COLOR_STATE_COUNT changes, update the code below!");
-                    LocalString<128> buffer;
-                    for (uint32 state = 0; state < OBJECT_COLOR_STATE_COUNT; ++state)
-                    {
-                        buffer.SetFormat("%s (%s)", colorName.c_str(), OBJECT_COLOR_STATE_NAMES[state].data());
-                        auto &it = propertyNames.emplace_back(buffer.GetText());
-                        Property p       = { currentPropId, categoryName, it.data(), PropertyType::ColorPair };
-                        ++currentPropId;
-                        properties.push_back(p);
-                    }
-                    continue;
-                }
-
-                if (color.IsColorPair())
-                {
-                    Property p = { currentPropId, categoryName, colorName, PropertyType::ColorPair };
-                    ++currentPropId;
-                    properties.push_back(std::move(p));
-                    continue;
-                }
-                assert(false && "Only ColorPair and ColorState are supported for custom colors!");
-            }
-        }
-
-
         return properties;
     }
 };

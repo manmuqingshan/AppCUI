@@ -802,6 +802,7 @@ namespace Utils
     };
     struct EXPORT PropertiesInterface
     {
+        virtual ~PropertiesInterface() = default;
         virtual bool GetPropertyValue(uint32 propertyID, PropertyValue& value)                      = 0;
         virtual bool SetPropertyValue(uint32 propertyID, const PropertyValue& value, String& error) = 0;
         virtual void SetCustomPropertyValue(uint32 propertyID)                                      = 0;
