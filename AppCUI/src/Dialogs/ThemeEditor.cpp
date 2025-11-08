@@ -1423,10 +1423,54 @@ class ConfigProperty : public PropertiesInterface
 
             return false; // Unhandled property
         }
-
-        // TODO: Custom properties should be handled here
-
+        auto color = GetCustomColorByPropertyId(static_cast<PropID>(propertyID), &value);
+        if (color.IsValid())
+            return true;
         return false;
+    }
+    Reference<CustomColor> GetCustomColorByPropertyId(PropID propertyID, PropertyValue* value)
+    {
+        if (propertyID < static_cast<PropID>(PropType::Count))
+            return nullptr;
+
+        PropID currentPropId = static_cast<PropID>(PropType::Count);
+        for (auto& [categoryName, categoryColors] : obj.CustomColors)
+        {
+            for (auto& [colorName, color] : categoryColors)
+            {
+                if (color.IsColorState())
+                {
+                    if (currentPropId <= propertyID && propertyID < currentPropId + OBJECT_COLOR_STATE_COUNT)
+                    {
+                        auto colorState = color.TryGetColorState();
+                        assert(colorState != nullptr);
+                        PropID actualId = propertyID - currentPropId;
+                        assert(actualId < OBJECT_COLOR_STATE_COUNT);
+                        if (value)
+                            *value = colorState->StatesList[actualId];
+                        return &color;
+                    }
+                    currentPropId += OBJECT_COLOR_STATE_COUNT;
+                    continue;
+                }
+
+                if (color.IsColorPair())
+                {
+                    if (currentPropId == propertyID)
+                    {
+                        auto colorPair = color.TryGetColorPair();
+                        assert(colorPair != nullptr);
+                        if (value)
+                            *value = *colorPair; 
+                        return &color;
+                    }
+                    ++currentPropId;
+                    continue;
+                }
+                assert(false && "Only ColorPair and ColorState are supported for custom colors!");
+            }
+        }
+        return nullptr;
     }
     bool SetPropertyValue(uint32 propertyID, const PropertyValue& value, String& error) override
     {
