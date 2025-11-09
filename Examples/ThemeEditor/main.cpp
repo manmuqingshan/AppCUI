@@ -21,10 +21,10 @@ struct WindowWithColors : public Dialogs::OnThemeChangedInterface
         constexpr Graphics::ColorPair normal  = { Graphics::Color::Aqua, Graphics::Color::Transparent };
         constexpr Graphics::ColorPair hovered  = { Graphics::Color::Green, Graphics::Color::Transparent };
         constexpr Graphics::ColorPair inactive = { Graphics::Color::Gray, Graphics::Color::Transparent };
-        constexpr Graphics::ColorPair presset  = { Graphics::Color::Red, Graphics::Color::Transparent };
+        constexpr Graphics::ColorPair pressed  = { Graphics::Color::Red, Graphics::Color::Transparent };
 
         auto colorObj = Graphics::ObjectColorState();
-        colorObj.Set(focused, normal, inactive, hovered, presset);
+        colorObj.Set(focused, normal, inactive, hovered, pressed);
 
         colors2 = { { "Obj", Graphics::CustomColor(colorObj) } };
 
