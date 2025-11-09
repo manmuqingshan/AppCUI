@@ -672,7 +672,7 @@ class ConfigProperty : public PropertiesInterface
         PaintOneButton(r, x, y - 2, "  Focused  ", ControlState::Focused, true);
         PaintOneButton(r, x, y, "  Regular  ", ControlState::Normal, true);
         PaintOneButton(r, x, y + 2, "  Hovered  ", ControlState::Hovered, true);
-        PaintOneButton(r, x + 14, y, "  Inactiv  ", ControlState::Inactive, true);
+        PaintOneButton(r, x + 14, y, "  Inactive  ", ControlState::Inactive, true);
         PaintOneButton(r, x + 14, y + 2, "  Pressed  ", ControlState::PressedOrSelected, false);
     }
     void PaintTexts(Graphics::Renderer& r, Size sz)
@@ -1037,7 +1037,14 @@ class ConfigProperty : public PropertiesInterface
             auto& data = it->second;
             if (auto owner = data.categoryRef->owner)
             {
-                owner->OnPreviewWindowDraw(data.categoryName, r, sz);
+                PaintDesktop(r);
+
+                DrawPreviewWindow(r, 2, 1, sz.Width - 3, sz.Height - 2, data.categoryName);
+                r.SetClipMargins(3, 2, 3, 2);
+
+                auto newSize = Size{ sz.Width - 6, sz.Height - 4 };
+
+                owner->OnPreviewWindowDraw(data.categoryName, r, 4, 3, newSize, data.categoryRef->data);
                 return;
             }
         }

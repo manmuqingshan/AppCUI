@@ -5652,7 +5652,13 @@ namespace Dialogs
     {
         virtual ~OnThemeChangedInterface() = default;
         virtual void OnThemeChanged(const Application::Config& config) = 0;
-        virtual void OnPreviewWindowDraw(std::string_view categoryName, Graphics::Renderer& r, Graphics::Size sz) = 0;
+        virtual void OnPreviewWindowDraw(
+              std::string_view categoryName,
+              Graphics::Renderer& r,
+              int startingX,
+              int startingY,
+              Graphics::Size sz,
+              const Application::Config::CustomColorNameStorage& colors) = 0;
     };
 
     class EXPORT ThemeEditor
