@@ -5388,6 +5388,12 @@ namespace Log
     bool EXPORT ToStdErr();
     bool EXPORT ToStdOut();
 } // namespace Log
+
+namespace Dialogs
+{
+    struct OnThemeChangedInterface;
+}
+
 namespace Application
 {
     enum class InitializationFlags : uint32
@@ -5479,8 +5485,13 @@ namespace Application
 
     struct Config
     {
-        using CategoryColorsStorage = std::map<std::string, Graphics::CustomColor>;
-        using CustomColorStorage = std::map<std::string, CategoryColorsStorage>;
+        using CustomColorNameStorage = std::map<std::string, Graphics::CustomColor>;
+        struct CategoryColorsData
+        {
+            CustomColorNameStorage data;
+            Dialogs::OnThemeChangedInterface* owner;
+        };
+        using CustomColorStorage = std::map<std::string, CategoryColorsData>;
 
         Graphics::ObjectColorState SearchBar, Border, Lines, Editor, LineMarker;
 
@@ -5641,6 +5652,7 @@ namespace Dialogs
     {
         virtual ~OnThemeChangedInterface() = default;
         virtual void OnThemeChanged(const Application::Config& config) = 0;
+        virtual void OnPreviewWindowDraw(std::string_view categoryName, Graphics::Renderer& r, Graphics::Size sz) = 0;
     };
 
     class EXPORT ThemeEditor
@@ -5649,7 +5661,10 @@ namespace Dialogs
 
       public:
         static void Show();
-        static bool RegisterCustomColors(Application::Config::CustomColorStorage colors, OnThemeChangedInterface* listener);
+        static bool RegisterCustomColors(
+              std::string category_name,
+              Application::Config::CustomColorNameStorage colors,
+              OnThemeChangedInterface* listener);
         static void RemoveListener(OnThemeChangedInterface* listener);
     };
 } // namespace Dialogs

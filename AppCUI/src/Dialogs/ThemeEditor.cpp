@@ -381,6 +381,30 @@ struct ConfigCustomEntry
     std::optional<uint8> stateIndex;
 };
 
+struct StringHash
+{
+    using is_transparent = void;
+    std::size_t operator()(std::string_view sv) const noexcept
+    {
+        return std::hash<std::string_view>{}(sv);
+    }
+};
+
+struct StringEqual
+{
+    using is_transparent = void;
+    bool operator()(std::string_view lhs, std::string_view rhs) const noexcept
+    {
+        return lhs == rhs;
+    }
+};
+
+struct CategoryRefWithName
+{
+    Reference<Application::Config::CategoryColorsData> categoryRef;
+    std::string_view categoryName;
+};
+
 class ConfigProperty : public PropertiesInterface
 {
     // <propID, <category, color_name, value>>
@@ -390,6 +414,8 @@ class ConfigProperty : public PropertiesInterface
     PropID propID;
     PreviewWindowID windowID;
     CatID catIDCount;
+    std::unordered_map<std::string, CatID, StringHash, StringEqual> categoriesName;
+    std::unordered_map<CatID, CategoryRefWithName> categoriesData;
     std::map<PropID, ConfigCustomEntry> customProperties;
 
   public:
@@ -399,10 +425,14 @@ class ConfigProperty : public PropertiesInterface
     {
         catIDCount = static_cast<CatID>(CatType::Count) + static_cast<uint32>(obj.CustomColors.size());
 
+        CatID currentCategoryID = static_cast<CatID>(CatType::None);
+        for (; currentCategoryID < static_cast<CatID>(CatType::Count); currentCategoryID++)
+            categoriesName[std::string(catNames[static_cast<uint32>(currentCategoryID)])] = currentCategoryID;
+
         PropID currentPropId = static_cast<PropID>(PropType::Count);
         for (auto& [categoryName, categoryColors] : obj.CustomColors)
         {
-            for (auto& [colorName, color] : categoryColors)
+            for (auto& [colorName, color] : categoryColors.data)
             {
                 if (color.IsColorState())
                 {
@@ -434,6 +464,8 @@ class ConfigProperty : public PropertiesInterface
                 }
                 assert(false && "Only ColorPair and ColorState are supported for custom colors!");
             }
+            categoriesData[currentCategoryID] = { &categoryColors, categoryName };
+            categoriesName[categoryName] = currentCategoryID++;
         }
     }
     inline AppCUI::Application::Config& GetConfig()
@@ -443,28 +475,12 @@ class ConfigProperty : public PropertiesInterface
     void SetCategoryAndProperty(string_view name, PropID pID)
     {
         propID = pID;
-        if (propID < static_cast<uint32>(PropType::Count))
+        auto nameIt = categoriesName.find(name);
+        if (nameIt != categoriesName.end())
         {
-            for (auto i = 0U; i < static_cast<uint32>(CatType::Count); i++)
-            {
-                if (catNames[i] == name)
-                {
-                    catID = static_cast<CatID>(i);
-                    return;
-                }
-            }
+            catID =  nameIt->second;
+            return;
         }
-        uint32 category_id = static_cast<uint32>(CatType::Count);
-        for (const auto& [category_name, category_colors] : obj.CustomColors)
-        {
-            if (name == category_name)
-            {
-                catID = category_id;
-                return;
-            }
-            ++category_id;
-        }
-
         catID = static_cast<uint32>(CatType::None);
     }
     void SetPreviewWindowID(PreviewWindowID id)
@@ -1014,8 +1030,17 @@ class ConfigProperty : public PropertiesInterface
 
             return;
         }
-        //Search for custom colors to paint
-        r.Clear();//TODO 
+
+        auto it = categoriesData.find(catID);
+        if (it != categoriesData.end())
+        {
+            auto& data = it->second;
+            if (auto owner = data.categoryRef->owner)
+            {
+                owner->OnPreviewWindowDraw(data.categoryName, r, sz);
+                return;
+            }
+        }
     }
     bool GetPropertyValue(uint32 propertyID, PropertyValue& value) override
     {
@@ -2410,27 +2435,26 @@ void ThemeEditor::Show()
     }
 }
 
-bool ThemeEditor::RegisterCustomColors(Application::Config::CustomColorStorage colors, OnThemeChangedInterface* listener)
+bool ThemeEditor::RegisterCustomColors(
+      std::string category_name, Application::Config::CustomColorNameStorage colors, OnThemeChangedInterface* listener)
 {
     auto app = Application::GetApplication();
     CHECK(app, false, "Application has not been initialized !");
     CHECK(app->Inited, false, "Application has not been correctly initialized !");
 
-    auto& config = app->config;
-    for (auto& [category_name, custom_colors] : colors)
+    if (catNames->find(category_name) != std::string::npos)
     {
-        if (catNames->find(category_name) != std::string::npos)
-        {
-            RETURNERROR(false, "Category '%s' is already registered in default category names!", category_name.c_str());
-        }
-
-        if (config.CustomColors.contains(category_name))
-        {
-            RETURNERROR(false, "Category '%s' is already registered in custom config colors !", category_name.c_str());
-        }
-
-        config.CustomColors[category_name] = std::move(custom_colors);
+        RETURNERROR(false, "Category '%s' is already registered in default category names!", category_name.c_str());
     }
+
+    auto& config = app->config;
+    if (config.CustomColors.contains(category_name))
+    {
+        RETURNERROR(false, "Category '%s' is already registered in custom config colors !", category_name.c_str());
+    }
+    auto& entry = config.CustomColors[std::move(category_name)];
+    entry.data  = std::move(colors);
+    entry.owner = listener;
 
     if (listener && !app->RegisterListener(listener))
         return false;
