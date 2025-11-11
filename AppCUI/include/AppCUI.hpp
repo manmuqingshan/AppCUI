@@ -5391,7 +5391,7 @@ namespace Log
 
 namespace Dialogs
 {
-    struct OnThemeChangedInterface;
+    struct OnThemePreviewWindowDrawInterface;
 }
 
 namespace Application
@@ -5489,7 +5489,7 @@ namespace Application
         struct CategoryColorsData
         {
             CustomColorNameStorage data;
-            Dialogs::OnThemeChangedInterface* owner;
+            Dialogs::OnThemePreviewWindowDrawInterface* previewInterface;
         };
         using CustomColorStorage = std::map<std::string, CategoryColorsData>;
 
@@ -5652,6 +5652,11 @@ namespace Dialogs
     {
         virtual ~OnThemeChangedInterface() = default;
         virtual void OnThemeChanged(const Application::Config& config) = 0;
+    };
+
+    struct OnThemePreviewWindowDrawInterface
+    {
+        virtual ~OnThemePreviewWindowDrawInterface() = default;
         virtual void OnPreviewWindowDraw(
               std::string_view categoryName,
               Graphics::Renderer& r,
@@ -5670,8 +5675,10 @@ namespace Dialogs
         static bool RegisterCustomColors(
               std::string category_name,
               Application::Config::CustomColorNameStorage colors,
-              OnThemeChangedInterface* listener);
-        static void RemoveListener(OnThemeChangedInterface* listener);
+              OnThemePreviewWindowDrawInterface* previewInterface);
+        static void RemovePreviewDrawListener(OnThemePreviewWindowDrawInterface* previewInterface);
+        static bool RegisterOnThemeChangeCallback(OnThemeChangedInterface* listener);
+        static void RemoveOnThemeChangeCallback(OnThemeChangedInterface* listener);
     };
 } // namespace Dialogs
 

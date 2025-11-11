@@ -1658,7 +1658,7 @@ void ApplicationImpl::ArrangeWindows(Application::ArrangeWindowsMethod method)
     this->RepaintStatus = REPAINT_STATUS_ALL;
 }
 
-bool ApplicationImpl::RegisterListener(Dialogs::OnThemeChangedInterface* listener)
+bool ApplicationImpl::RegisterThemeChangeListener(Dialogs::OnThemeChangedInterface* listener)
 {
     if (!listener)
         return true;
@@ -1667,7 +1667,7 @@ bool ApplicationImpl::RegisterListener(Dialogs::OnThemeChangedInterface* listene
     themeChangedListeners.emplace(listener);
     return true;
 }
-void ApplicationImpl::RemoveListener(Dialogs::OnThemeChangedInterface* listener)
+void ApplicationImpl::RemoveThemeChangeListener(Dialogs::OnThemeChangedInterface* listener)
 {
     auto it = themeChangedListeners.find(listener);
     if (it != themeChangedListeners.end())

@@ -318,8 +318,8 @@ namespace Internal
         void ArrangeWindows(Application::ArrangeWindowsMethod method);
 
         // Theme changed
-        bool RegisterListener(Dialogs::OnThemeChangedInterface* listener);
-        void RemoveListener(Dialogs::OnThemeChangedInterface* listener);
+        bool RegisterThemeChangeListener(Dialogs::OnThemeChangedInterface* listener);
+        void RemoveThemeChangeListener(Dialogs::OnThemeChangedInterface* listener);
         void TriggerThemeChange() const;
     };
 } // namespace Internal

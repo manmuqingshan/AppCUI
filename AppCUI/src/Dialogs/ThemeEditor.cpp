@@ -1035,7 +1035,7 @@ class ConfigProperty : public PropertiesInterface
         if (it != categoriesData.end())
         {
             auto& data = it->second;
-            if (auto owner = data.categoryRef->owner)
+            if (auto owner = data.categoryRef->previewInterface)
             {
                 PaintDesktop(r);
 
@@ -2443,11 +2443,18 @@ void ThemeEditor::Show()
 }
 
 bool ThemeEditor::RegisterCustomColors(
-      std::string category_name, Application::Config::CustomColorNameStorage colors, OnThemeChangedInterface* listener)
+      std::string category_name,
+      Application::Config::CustomColorNameStorage colors,
+      OnThemePreviewWindowDrawInterface* previewInterface)
 {
     auto app = Application::GetApplication();
     CHECK(app, false, "Application has not been initialized !");
     CHECK(app->Inited, false, "Application has not been correctly initialized !");
+
+    if (colors.empty())
+    {
+        RETURNERROR(false, "No colors specified for category '%s'!", category_name.c_str());
+    }
 
     if (catNames->find(category_name) != std::string::npos)
     {
@@ -2459,21 +2466,52 @@ bool ThemeEditor::RegisterCustomColors(
     {
         RETURNERROR(false, "Category '%s' is already registered in custom config colors !", category_name.c_str());
     }
-    auto& entry = config.CustomColors[std::move(category_name)];
-    entry.data  = std::move(colors);
-    entry.owner = listener;
 
-    if (listener && !app->RegisterListener(listener))
-        return false;
+    auto& entry            = config.CustomColors[std::move(category_name)];
+    entry.data             = std::move(colors);
+    entry.previewInterface = previewInterface;
+
     return true;
 }
 
-void ThemeEditor::RemoveListener(OnThemeChangedInterface* listener)
+void ThemeEditor::RemovePreviewDrawListener(OnThemePreviewWindowDrawInterface* previewInterface)
 {
     auto app = Application::GetApplication();
-    if (!app)
+    if (!app || !app->Inited)
         return;
-    app->RemoveListener(listener);
+
+    auto& config = app->config;
+    for (auto& [catName, catData] : config.CustomColors)
+    {
+        if (catData.previewInterface == previewInterface)
+        {
+            catData.previewInterface = nullptr;
+            // no break in case the same listener is registered for multiple categories
+        }
+    }
+
+    //app->RemoveListener(previewInterface);
+}
+
+bool ThemeEditor::RegisterOnThemeChangeCallback(OnThemeChangedInterface* listener)
+{
+    if (!listener)
+        return false;
+    auto app = Application::GetApplication();
+    CHECK(app, false, "Application has not been initialized !");
+    CHECK(app->Inited, false, "Application has not been correctly initialized !");
+    return app->RegisterThemeChangeListener(listener);
+
+}
+
+void ThemeEditor::RemoveOnThemeChangeCallback(OnThemeChangedInterface* listener)
+{
+    if (!listener)
+        return;
+    auto app = Application::GetApplication();
+    if (!app || !app->Inited)
+        return;
+    app->RemoveThemeChangeListener(listener);
 }
 
 } // namespace AppCUI::Dialogs

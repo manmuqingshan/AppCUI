@@ -4,7 +4,7 @@ using namespace AppCUI;
 using namespace AppCUI::Controls;
 using namespace AppCUI::Dialogs;
 
-struct WindowWithColors : public Dialogs::OnThemeChangedInterface
+struct WindowWithColors : public Dialogs::OnThemeChangedInterface, public Dialogs::OnThemePreviewWindowDrawInterface
 {
     Application::Config::CustomColorNameStorage colors1, colors2;
 
@@ -42,7 +42,8 @@ struct WindowWithColors : public Dialogs::OnThemeChangedInterface
     }
     ~WindowWithColors() override
     {
-        Dialogs::ThemeEditor::RemoveListener(this);
+        Dialogs::ThemeEditor::RemovePreviewDrawListener(this);
+        Dialogs::ThemeEditor::RemoveOnThemeChangeCallback(this);
     }
 
     void OnThemeChanged(const Application::Config& config) override
