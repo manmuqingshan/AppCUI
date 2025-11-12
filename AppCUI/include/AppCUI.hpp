@@ -2088,7 +2088,7 @@ namespace Utils
 
         bool IsArray() const;
         uint32 GetArrayCount() const;
-        IniValueArray operator[](int32 index) const;
+        IniValueArray operator[](uint32 index) const;
 
         string_view GetName() const;
 
