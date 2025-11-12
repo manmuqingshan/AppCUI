@@ -2451,9 +2451,24 @@ bool ThemeEditor::RegisterCustomColors(
     CHECK(app, false, "Application has not been initialized !");
     CHECK(app->Inited, false, "Application has not been correctly initialized !");
 
+    if (category_name.find(' ') != std::string::npos)
+    {
+        MessageBox::ShowError("Error", "You cannot have spaces inside the color category name!");
+        return false;
+    }
+
     if (colors.empty())
     {
         RETURNERROR(false, "No colors specified for category '%s'!", category_name.c_str());
+    }
+
+    for (const auto& [colorName, color]: colors)
+    {
+        if (colorName.find(' ') != std::string::npos)
+        {
+            MessageBox::ShowError("Error", "You cannot have spaces inside the color name!");
+            return false;
+        }
     }
 
     if (catNames->find(category_name) != std::string::npos)

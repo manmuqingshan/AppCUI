@@ -12,10 +12,10 @@ struct WindowWithColors : public Dialogs::OnThemeChangedInterface, public Dialog
     {
         colors1 = {
             { "TitleColor",
-                      Graphics::CustomColor(Graphics::ColorPair{ Graphics::Color::Red, Graphics::Color::Transparent }) },
-                    { "TextColor",
-                      Graphics::CustomColor(
-                            Graphics::ColorPair{ Graphics::Color::Green, Graphics::Color::Transparent }) } };
+              Graphics::CustomColor(Graphics::ColorPair{ Graphics::Color::Red, Graphics::Color::Transparent }) },
+            { "TextColor",
+              Graphics::CustomColor(Graphics::ColorPair{ Graphics::Color::Green, Graphics::Color::Transparent }) }
+        };
 
         constexpr Graphics::ColorPair focused  = { Graphics::Color::Yellow, Graphics::Color::Transparent };
         constexpr Graphics::ColorPair normal  = { Graphics::Color::Aqua, Graphics::Color::Transparent };
@@ -28,13 +28,13 @@ struct WindowWithColors : public Dialogs::OnThemeChangedInterface, public Dialog
 
         colors2 = { { "Obj", Graphics::CustomColor(colorObj) } };
 
-        if (!Dialogs::ThemeEditor::RegisterCustomColors("A Custom SimpleColor", colors1, this))
+        if (!Dialogs::ThemeEditor::RegisterCustomColors("ACustomSimpleColor", colors1, this))
         {
             LOG_ERROR("Failed to register custom colors1!");
             return;
         }
 
-        if (!Dialogs::ThemeEditor::RegisterCustomColors("A Custom ObjColor", colors2, this))
+        if (!Dialogs::ThemeEditor::RegisterCustomColors("ACustomObjColor", colors2, this))
         {
             LOG_ERROR("Failed to register custom colors!");
             return;
@@ -48,10 +48,10 @@ struct WindowWithColors : public Dialogs::OnThemeChangedInterface, public Dialog
 
     void OnThemeChanged(const Application::Config& config) override
     {
-        auto& simpleColorCategory = config.CustomColors.at("A Custom SimpleColor");
+        auto& simpleColorCategory = config.CustomColors.at("ACustomSimpleColor");
         colors1                   = simpleColorCategory.data;
 
-        auto& customObjectColor = config.CustomColors.at("A Custom ObjColor");
+        auto& customObjectColor = config.CustomColors.at("ACustomObjColor");
         colors2                 = customObjectColor.data;
     }
 
@@ -63,7 +63,7 @@ struct WindowWithColors : public Dialogs::OnThemeChangedInterface, public Dialog
           Graphics::Size sz,
           const Application::Config::CustomColorNameStorage& colors) override
     {
-        if (categoryName == "A Custom SimpleColor")
+        if (categoryName == "ACustomSimpleColor")
         {
             auto titleColor = colors.at("TitleColor").TryGetColorPair();
             auto textColor  = colors.at("TextColor").TryGetColorPair();
@@ -74,7 +74,7 @@ struct WindowWithColors : public Dialogs::OnThemeChangedInterface, public Dialog
             r.WriteSingleLineText(startingX, startingY, "This is a title", *titleColor);
             r.WriteSingleLineText(startingX, startingY + 2, "This is a text with custom colors.", *textColor);
         }
-        if (categoryName == "A Custom ObjColor")
+        if (categoryName == "ACustomObjColor")
         {
             auto objColorState = colors.at("Obj").TryGetColorState();
             assert(objColorState);
