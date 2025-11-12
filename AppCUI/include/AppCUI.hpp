@@ -399,7 +399,7 @@ namespace Graphics
 
     constexpr uint32 OBJECT_COLOR_STATE_COUNT = 5;
     constexpr std::string_view OBJECT_COLOR_STATE_NAMES[OBJECT_COLOR_STATE_COUNT] = {
-        "Focused", "Normal", "Hovered", "Inactive", "PressedOrSelected"
+        "Focused", "Normal", "Hovered", "Inactive", "Pressed"
     };
     struct ObjectColorState
     {
@@ -5553,6 +5553,9 @@ namespace Application
         std::filesystem::path ThemesFolder;
         ThemeType Theme;
         CustomColorStorage CustomColors;
+
+        bool SerializeCustomColors(AppCUI::Utils::LocalString<8192> &bufferToSerializeTo);
+        bool DeserializeCustomColors(Utils::IniObject& configFile);
     };
 
     EXPORT Config* GetAppConfig();

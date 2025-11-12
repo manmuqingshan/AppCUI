@@ -2477,15 +2477,19 @@ bool ThemeEditor::RegisterCustomColors(
     }
 
     auto& config = app->config;
-    if (config.CustomColors.contains(category_name))
+    auto& colorsCategory = config.CustomColors[category_name];
+    if (colorsCategory.previewInterface)
     {
         RETURNERROR(false, "Category '%s' is already registered in custom config colors !", category_name.c_str());
     }
 
-    auto& entry            = config.CustomColors[std::move(category_name)];
-    entry.data             = std::move(colors);
-    entry.previewInterface = previewInterface;
-
+    for (auto& [colorName, color] : colors)
+    {
+        if (colorsCategory.data.contains(colorName))
+            continue;
+        colorsCategory.data[colorName] = color;
+    }
+    colorsCategory.previewInterface = previewInterface;
     return true;
 }
 
