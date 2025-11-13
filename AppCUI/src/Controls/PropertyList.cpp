@@ -146,6 +146,17 @@ class PropertyEditDialog : public Window
         }
         return false;
     }
+    bool OnKeyEvent(Input::Key keyCode, char16 charCode) override
+    {
+        if (Window::OnKeyEvent(keyCode, charCode))
+            return true;
+        if (keyCode == Input::Key::Escape)
+        {
+            this->Exit(Dialogs::Result::Cancel);
+            return true;
+        }
+        return false;
+    }
     virtual void OnInitPropertyDialog() = 0;
     virtual void Refresh()              = 0;
     virtual void Validate()             = 0;

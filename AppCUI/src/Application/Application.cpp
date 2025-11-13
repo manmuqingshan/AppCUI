@@ -214,7 +214,7 @@ ItemHandle Application::AddWindow(unique_ptr<Window> wnd, Window* referalWindow,
 Controls::Menu* Application::AddMenu(const ConstString& name)
 {
     CHECK(app, nullptr, "Application has not been initialized !");
-    CHECK(app->Inited, nullptr, "Application has not been corectly initialized !");
+    CHECK(app->Inited, nullptr, "Application has not been correctly initialized !");
     CHECK(app->menu, nullptr, "Application was not initialized with HAS_MENU option set up !");
     ItemHandle itm         = app->menu->AddMenu(name);
     Controls::Menu* result = app->menu->GetMenu(itm);
@@ -1657,4 +1657,29 @@ void ApplicationImpl::ArrangeWindows(Application::ArrangeWindowsMethod method)
 
     this->RepaintStatus = REPAINT_STATUS_ALL;
 }
+
+bool ApplicationImpl::RegisterThemeChangeListener(Dialogs::OnThemeChangedInterface* listener)
+{
+    if (!listener)
+        return true;
+    if (themeChangedListeners.contains(listener))
+        return false;
+    themeChangedListeners.emplace(listener);
+    return true;
+}
+void ApplicationImpl::RemoveThemeChangeListener(Dialogs::OnThemeChangedInterface* listener)
+{
+    auto it = themeChangedListeners.find(listener);
+    if (it != themeChangedListeners.end())
+        themeChangedListeners.erase(it);
+}
+
+void ApplicationImpl::TriggerThemeChange() const
+{
+    for (const auto& listener: themeChangedListeners)
+    {
+        listener->OnThemeChanged(config);
+    }
+}
+
 } // namespace AppCUI

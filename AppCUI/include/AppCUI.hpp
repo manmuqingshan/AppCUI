@@ -397,11 +397,15 @@ namespace Graphics
     constexpr ColorPair NoColorPair      = ColorPair{ Color::Transparent, Color::Transparent };
     constexpr ColorPair DefaultColorPair = ColorPair{ Color::White, Color::Black };
 
+    constexpr uint32 OBJECT_COLOR_STATE_COUNT = 5;
+    constexpr std::string_view OBJECT_COLOR_STATE_NAMES[OBJECT_COLOR_STATE_COUNT] = {
+        "Focused", "Normal", "Hovered", "Inactive", "Pressed"
+    };
     struct ObjectColorState
     {
         union
         {
-            ColorPair StatesList[5];
+            ColorPair StatesList[OBJECT_COLOR_STATE_COUNT];
             struct
             {
                 ColorPair Focused, Normal, Hovered, Inactive, PressedOrSelected;
@@ -462,6 +466,55 @@ namespace Graphics
         {
             return this->StatesList[static_cast<uint32>(state)];
         }
+    };
+
+    class CustomColor
+    {
+      public:
+        using VariantT = std::variant<ColorPair, ObjectColorState>;
+
+        CustomColor() = default;
+        CustomColor(ObjectColorState s) noexcept(std::is_nothrow_move_constructible_v<VariantT>)
+            : variant_(std::move(s)) {}
+        CustomColor(ColorPair c) noexcept(std::is_nothrow_move_constructible_v<VariantT>) : variant_(std::move(c)) {}
+
+        CustomColor(const CustomColor&)                = default;
+        CustomColor(CustomColor&&) noexcept            = default;
+        CustomColor& operator=(const CustomColor&)     = default;
+        CustomColor& operator=(CustomColor&&) noexcept = default;
+
+        template <typename Visitor>
+        decltype(auto) Visit(Visitor&& vis)
+        {
+            return std::visit(std::forward<Visitor>(vis), variant_);
+        }
+
+        template <typename Visitor>
+        decltype(auto) Visit(Visitor&& vis) const
+        {
+            return std::visit(std::forward<Visitor>(vis), variant_);
+        }
+
+        bool IsColorState() const noexcept
+        {
+            return std::holds_alternative<ObjectColorState>(variant_);
+        }
+        bool IsColorPair() const noexcept
+        {
+            return std::holds_alternative<ColorPair>(variant_);
+        }
+
+        const ObjectColorState* TryGetColorState() const noexcept
+        {
+            return std::get_if<ObjectColorState>(&variant_);
+        }
+        const ColorPair* TryGetColorPair() const noexcept
+        {
+            return std::get_if<ColorPair>(&variant_);
+        }
+
+      private:
+        VariantT variant_;
     };
 
     struct Character
@@ -749,6 +802,7 @@ namespace Utils
     };
     struct EXPORT PropertiesInterface
     {
+        virtual ~PropertiesInterface() = default;
         virtual bool GetPropertyValue(uint32 propertyID, PropertyValue& value)                      = 0;
         virtual bool SetPropertyValue(uint32 propertyID, const PropertyValue& value, String& error) = 0;
         virtual void SetCustomPropertyValue(uint32 propertyID)                                      = 0;
@@ -2034,7 +2088,7 @@ namespace Utils
 
         bool IsArray() const;
         uint32 GetArrayCount() const;
-        IniValueArray operator[](int32 index) const;
+        IniValueArray operator[](uint32 index) const;
 
         string_view GetName() const;
 
@@ -5301,60 +5355,6 @@ namespace Controls
 
 }; // namespace Controls
 
-namespace Dialogs
-{
-    class EXPORT MessageBox
-    {
-        MessageBox() = delete;
-
-      public:
-        static void ShowError(const ConstString& title, const ConstString& message);
-        static void ShowNotification(const ConstString& title, const ConstString& message);
-        static void ShowWarning(const ConstString& title, const ConstString& message);
-        static Result ShowOkCancel(const ConstString& title, const ConstString& message);
-        static Result ShowYesNoCancel(const ConstString& title, const ConstString& message);
-    };
-
-    class EXPORT FileDialog
-    {
-        FileDialog() = delete;
-
-        // Add additional extension filters so that FileDialog will show only the specified extensions,
-        // other extensions will be filtered. If no filter is passed (empty string) - "All files" is chosen
-        //
-        // Filter format is: <Name>:ext|<Name>:ext| ...
-        //               or: <Name>:ext1,ext2,ext3|<Name>:ext|....
-        //
-        // For example:
-        //       "Text Files:txt|Images:jpg,jpeg,png|Documents:pdf,doc,docx,xlsx,xls,ppt,pptx"
-        //
-        // Will show "Text Files" and, if selected, only .txt files will be shown
-        // If the user selects "Images" - .jpg, .jpeg and .png files will be shown
-
-      public:
-        static optional<std::filesystem::path> ShowSaveFileWindow(
-              const ConstString& fileName, const ConstString& extensionsFilter, const std::filesystem::path& path);
-        static optional<std::filesystem::path> ShowOpenFileWindow(
-              const ConstString& fileName, const ConstString& extensionsFilter, const std::filesystem::path& path);
-    };
-
-    class EXPORT WindowManager
-    {
-        WindowManager() = delete;
-
-      public:
-        static void Show();
-    };
-
-    class EXPORT ThemeEditor
-    {
-        ThemeEditor() = delete;
-
-      public:
-        static void Show();
-    };
-} // namespace Dialogs
-
 namespace Log
 {
     enum class Severity : uint32
@@ -5388,6 +5388,12 @@ namespace Log
     bool EXPORT ToStdErr();
     bool EXPORT ToStdOut();
 } // namespace Log
+
+namespace Dialogs
+{
+    struct OnThemePreviewWindowDrawInterface;
+}
+
 namespace Application
 {
     enum class InitializationFlags : uint32
@@ -5479,6 +5485,14 @@ namespace Application
 
     struct Config
     {
+        using CustomColorNameStorage = std::map<std::string, Graphics::CustomColor>;
+        struct CategoryColorsData
+        {
+            CustomColorNameStorage data;
+            Dialogs::OnThemePreviewWindowDrawInterface* previewInterface;
+        };
+        using CustomColorStorage = std::map<std::string, CategoryColorsData>;
+
         Graphics::ObjectColorState SearchBar, Border, Lines, Editor, LineMarker;
 
         struct
@@ -5538,6 +5552,10 @@ namespace Application
 
         std::filesystem::path ThemesFolder;
         ThemeType Theme;
+        CustomColorStorage CustomColors;
+
+        bool SerializeCustomColors(AppCUI::Utils::LocalString<8192> &bufferToSerializeTo);
+        bool DeserializeCustomColors(Utils::IniObject& configFile);
     };
 
     EXPORT Config* GetAppConfig();
@@ -5587,6 +5605,86 @@ namespace Application
     EXPORT void SetTheme(ThemeType themeType);
     EXPORT bool SetSpecialCharacterSet(SpecialCharacterSetType characterSetType);
 }; // namespace Application
+
+namespace Dialogs
+{
+    class EXPORT MessageBox
+    {
+        MessageBox() = delete;
+
+      public:
+        static void ShowError(const ConstString& title, const ConstString& message);
+        static void ShowNotification(const ConstString& title, const ConstString& message);
+        static void ShowWarning(const ConstString& title, const ConstString& message);
+        static Result ShowOkCancel(const ConstString& title, const ConstString& message);
+        static Result ShowYesNoCancel(const ConstString& title, const ConstString& message);
+    };
+
+    class EXPORT FileDialog
+    {
+        FileDialog() = delete;
+
+        // Add additional extension filters so that FileDialog will show only the specified extensions,
+        // other extensions will be filtered. If no filter is passed (empty string) - "All files" is chosen
+        //
+        // Filter format is: <Name>:ext|<Name>:ext| ...
+        //               or: <Name>:ext1,ext2,ext3|<Name>:ext|....
+        //
+        // For example:
+        //       "Text Files:txt|Images:jpg,jpeg,png|Documents:pdf,doc,docx,xlsx,xls,ppt,pptx"
+        //
+        // Will show "Text Files" and, if selected, only .txt files will be shown
+        // If the user selects "Images" - .jpg, .jpeg and .png files will be shown
+
+      public:
+        static optional<std::filesystem::path> ShowSaveFileWindow(
+              const ConstString& fileName, const ConstString& extensionsFilter, const std::filesystem::path& path);
+        static optional<std::filesystem::path> ShowOpenFileWindow(
+              const ConstString& fileName, const ConstString& extensionsFilter, const std::filesystem::path& path);
+    };
+
+    class EXPORT WindowManager
+    {
+        WindowManager() = delete;
+
+      public:
+        static void Show();
+    };
+
+    struct OnThemeChangedInterface
+    {
+        virtual ~OnThemeChangedInterface() = default;
+        virtual void OnThemeChanged(const Application::Config& config) = 0;
+    };
+
+    struct OnThemePreviewWindowDrawInterface
+    {
+        virtual ~OnThemePreviewWindowDrawInterface() = default;
+        virtual void OnPreviewWindowDraw(
+              std::string_view categoryName,
+              Graphics::Renderer& r,
+              int startingX,
+              int startingY,
+              Graphics::Size sz,
+              const Application::Config::CustomColorNameStorage& colors) = 0;
+    };
+
+    class EXPORT ThemeEditor
+    {
+        ThemeEditor() = delete;
+
+      public:
+        static void Show();
+        static bool RegisterCustomColors(
+              std::string category_name,
+              Application::Config::CustomColorNameStorage colors,
+              OnThemePreviewWindowDrawInterface* previewInterface);
+        static void RemovePreviewDrawListener(OnThemePreviewWindowDrawInterface* previewInterface);
+        static bool RegisterOnThemeChangeCallback(OnThemeChangedInterface* listener);
+        static void RemoveOnThemeChangeCallback(OnThemeChangedInterface* listener);
+    };
+} // namespace Dialogs
+
 namespace Endian
 {
 
