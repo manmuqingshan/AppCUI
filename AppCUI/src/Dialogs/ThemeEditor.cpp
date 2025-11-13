@@ -423,6 +423,13 @@ class ConfigProperty : public PropertiesInterface
         : obj(config), catID(static_cast<CatID>(CatType::None)), propID(static_cast<PropID>(PropType::None)),
           windowID(PreviewWindowID::Normal)
     {
+        ReInitializeFields();
+    }
+
+    void ReInitializeFields()
+    {
+        categoriesName.clear();
+        categoriesData.clear();
         catIDCount = static_cast<CatID>(CatType::Count) + static_cast<uint32>(obj.CustomColors.size());
 
         CatID currentCategoryID = static_cast<CatID>(CatType::None);
@@ -465,9 +472,10 @@ class ConfigProperty : public PropertiesInterface
                 assert(false && "Only ColorPair and ColorState are supported for custom colors!");
             }
             categoriesData[currentCategoryID] = { &categoryColors, categoryName };
-            categoriesName[categoryName] = currentCategoryID++;
+            categoriesName[categoryName]      = currentCategoryID++;
         }
     }
+
     inline AppCUI::Application::Config& GetConfig()
     {
         return obj;
@@ -2348,6 +2356,7 @@ class ThemeEditorDialog : public Window
                 MessageBox::ShowError("Load", "Fail to load theme from file !");
             }
         }
+        cfg.ReInitializeFields();
     }
 
     void OnApplyTheme()

@@ -989,6 +989,9 @@ bool Config::DeserializeCustomColors(Utils::IniObject& configFile)
         }
         CategoryColorsData categoryColorsData   = {};
         categoryColorsData.data                 = std::move(colorsStorage);
+        auto existingCategory                   = CustomColors.find(std::string(categoryName));
+        if (existingCategory != CustomColors.end())
+            categoryColorsData.previewInterface = existingCategory->second.previewInterface;
         CustomColors[std::string(categoryName)] = std::move(categoryColorsData);
     }
     return true;
